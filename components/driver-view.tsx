@@ -19,9 +19,10 @@ interface Passenger {
 
 interface DriverViewProps {
   onBack: () => void
+  onOpenProfile: () => void
 }
 
-export function DriverView({ onBack }: DriverViewProps) {
+export function DriverView({ onBack, onOpenProfile }: DriverViewProps) {
   const driverPosition: [number, number] = [14.68, -17.45]
 
   const [passengers] = useState<Passenger[]>([
@@ -31,6 +32,7 @@ export function DriverView({ onBack }: DriverViewProps) {
       position: [14.6937, -17.4441],
       address: "Port de Dakar, Avenue du Port",
       waitTime: 5,
+      avatar: "/african-man-professional.png",
     },
     {
       id: "2",
@@ -38,6 +40,7 @@ export function DriverView({ onBack }: DriverViewProps) {
       position: [14.7, -17.46],
       address: "Plateau, Rue Mohamed V",
       waitTime: 8,
+      avatar: "/african-woman-professional.jpg",
     },
     {
       id: "3",
@@ -45,6 +48,7 @@ export function DriverView({ onBack }: DriverViewProps) {
       position: [14.685, -17.435],
       address: "Médina, Avenue Blaise Diagne",
       waitTime: 3,
+      avatar: "/african-businessman.png",
     },
   ])
 
@@ -63,6 +67,7 @@ export function DriverView({ onBack }: DriverViewProps) {
       position: p.position,
       type: "user" as const,
       label: p.name,
+      avatar: p.avatar,
     })),
   ]
 
@@ -81,7 +86,7 @@ export function DriverView({ onBack }: DriverViewProps) {
   return (
     <div className="relative h-full w-full flex flex-col">
       <div className="flex-1 relative z-0">
-        <Map center={driverPosition} zoom={13} markers={markers} route={route} />
+        <Map center={driverPosition} zoom={13} markers={markers} route={route} showGeofence={true} />
       </div>
 
       {/* Top Bar */}
@@ -94,10 +99,12 @@ export function DriverView({ onBack }: DriverViewProps) {
             <div className="h-2 w-2 rounded-full bg-success animate-pulse" />
             <span className="text-sm font-medium">En Service</span>
           </div>
-          <Avatar className="h-12 w-12 border-2 border-accent shadow-lg">
-            <AvatarImage src="/professional-bus-driver.png" />
-            <AvatarFallback className="bg-primary text-primary-foreground">JD</AvatarFallback>
-          </Avatar>
+          <button onClick={onOpenProfile}>
+            <Avatar className="h-12 w-12 border-2 border-accent shadow-lg cursor-pointer hover:border-accent/70 transition-colors">
+              <AvatarImage src="/professional-bus-driver.png" />
+              <AvatarFallback className="bg-primary text-primary-foreground">JD</AvatarFallback>
+            </Avatar>
+          </button>
         </div>
       </div>
 

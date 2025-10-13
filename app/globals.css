@@ -17,14 +17,14 @@
   --primary-foreground: oklch(0.98 0.005 240);
 
   /* Secondary: Coral/Orange accent */
-  --secondary: oklch(0.68 0.18 35);
+  --secondary: rgb(203, 5, 56);
   --secondary-foreground: oklch(0.98 0.005 240);
 
   --muted: oklch(0.95 0.01 240);
   --muted-foreground: oklch(0.5 0.02 240);
 
   /* Accent: Bright coral for CTAs */
-  --accent: oklch(0.68 0.18 35);
+  --accent: rgb(8, 175, 108);
   --accent-foreground: oklch(0.98 0.005 240);
 
   /* Success: Green for valid zones */

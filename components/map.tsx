@@ -9,17 +9,36 @@ interface MapProps {
     position: [number, number]
     type: "user" | "bus" | "pickup"
     label?: string
+    avatar?: string
   }>
   route?: Array<[number, number]>
   onMapClick?: (lat: number, lng: number) => void
   className?: string
+  showGeofence?: boolean
 }
 
-export function Map({ center, zoom = 13, markers = [], route, onMapClick, className = "" }: MapProps) {
+const DAKAR_PORT_GEOFENCE: [number, number][] = [
+  [14.705, -17.455],
+  [14.705, -17.43],
+  [14.685, -17.43],
+  [14.685, -17.455],
+  [14.705, -17.455],
+]
+
+export function Map({
+  center,
+  zoom = 13,
+  markers = [],
+  route,
+  onMapClick,
+  className = "",
+  showGeofence = true,
+}: MapProps) {
   const mapRef = useRef<any>(null)
   const mapContainerRef = useRef<HTMLDivElement>(null)
   const markersRef = useRef<any[]>([])
   const routeLayerRef = useRef<any>(null)
+  const geofenceLayerRef = useRef<any>(null)
   const leafletLoadedRef = useRef(false)
 
   useEffect(() => {
@@ -50,6 +69,16 @@ export function Map({ center, zoom = 13, markers = [], route, onMapClick, classN
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
         maxZoom: 19,
       }).addTo(map)
+
+      if (showGeofence) {
+        geofenceLayerRef.current = L.polygon(DAKAR_PORT_GEOFENCE, {
+          color: "#00AA66",
+          fillColor: "#00AA66",
+          fillOpacity: 0.1,
+          weight: 2,
+          dashArray: "5, 10",
+        }).addTo(map)
+      }
 
       // Handle map clicks
       if (onMapClick) {
@@ -121,21 +150,21 @@ export function Map({ center, zoom = 13, markers = [], route, onMapClick, classN
           iconAnchor: [24, 48],
         })
       } else {
+        const avatarUrl = markerData.avatar || "/professional-employee.png"
         icon = L.divIcon({
           className: "custom-user-marker",
           html: `
             <div style="position: relative;">
               <div style="position: absolute; inset: 0; animation: ping 1s cubic-bezier(0, 0, 0.2, 1) infinite;">
-                <div style="height: 48px; width: 48px; border-radius: 50%; background-color: rgba(0, 102, 204, 0.3);"></div>
+                <div style="height: 56px; width: 56px; border-radius: 50%; background-color: rgba(0, 102, 204, 0.3);"></div>
               </div>
-              <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="#0066CC" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style="filter: drop-shadow(0 10px 8px rgb(0 0 0 / 0.04)) drop-shadow(0 4px 3px rgb(0 0 0 / 0.1));">
-                <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/>
-                <circle cx="12" cy="10" r="3" fill="white"/>
-              </svg>
+              <div style="position: relative; height: 56px; width: 56px; border-radius: 50%; border: 3px solid #0066CC; overflow: hidden; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3); background-color: white;">
+                <img src="${avatarUrl}" alt="User" style="width: 100%; height: 100%; object-fit: cover;" />
+              </div>
             </div>
           `,
-          iconSize: [48, 48],
-          iconAnchor: [24, 48],
+          iconSize: [56, 56],
+          iconAnchor: [28, 28],
         })
       }
 
@@ -199,7 +228,6 @@ export function Map({ center, zoom = 13, markers = [], route, onMapClick, classN
             opacity: 0;
           }
         }
-        /* Ajout de styles pour s'assurer que la carte ne déborde pas */
         .leaflet-container {
           width: 100%;
           height: 100%;

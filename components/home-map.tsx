@@ -2,30 +2,65 @@
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { MapPin, Menu, Clock, Users, X } from "lucide-react"
+import { MapPin, Menu, Clock, Users, X, AlertCircle } from "lucide-react"
 import { Map } from "./map"
 import { useState, useEffect } from "react"
 
 interface HomeMapProps {
   onRequestPickup: () => void
+  onOpenProfile: () => void
+  userProfile: {
+    first_name: string | null
+    last_name: string | null
+    avatar_url: string | null
+  } | null
 }
 
-export function HomeMap({ onRequestPickup }: HomeMapProps) {
-  const dakarPort: [number, number] = [14.6937, -17.4441]
+function isPointInPolygon(point: [number, number], polygon: [number, number][]): boolean {
+  const [lat, lng] = point
+  let inside = false
+
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    const [lat1, lng1] = polygon[i]
+    const [lat2, lng2] = polygon[j]
+
+    const intersect = lng1 > lng !== lng2 > lng && lat < ((lat2 - lat1) * (lng - lng1)) / (lng2 - lng1) + lat1
+
+    if (intersect) inside = !inside
+  }
+
+  return inside
+}
+
+const DAKAR_PORT_GEOFENCE: [number, number][] = [
+  [14.705, -17.455],
+  [14.705, -17.43],
+  [14.685, -17.43],
+  [14.685, -17.455],
+  [14.705, -17.455],
+]
+
+export function HomeMap({ onRequestPickup, onOpenProfile, userProfile }: HomeMapProps) {
+  const positionInZone: [number, number] = [14.6937, -17.4441]
+  const positionOutZone: [number, number] = [14.705017074264646, -17.45701306060759]
+
+  const [isOutsideZone, setIsOutsideZone] = useState(false)
+  const currentPosition = isOutsideZone ? positionOutZone : positionInZone
 
   const [requestPending, setRequestPending] = useState(false)
   const [driverAccepted, setDriverAccepted] = useState(false)
   const [showToast, setShowToast] = useState(false)
   const [isSheetCollapsed, setIsSheetCollapsed] = useState(false)
   const [busPosition, setBusPosition] = useState<[number, number] | null>(null)
+  const [showGeofenceError, setShowGeofenceError] = useState(false)
+
+  const isInGeofence = isPointInPolygon(currentPosition, DAKAR_PORT_GEOFENCE)
 
   useEffect(() => {
     if (requestPending && !driverAccepted) {
       const timer = setTimeout(() => {
         setDriverAccepted(true)
-        // Position initiale du bus (un peu au nord du port)
         setBusPosition([14.7037, -17.4541])
-        // L'utilisateur reste sur cet écran avec le bus visible sur la carte
       }, 5000)
 
       return () => clearTimeout(timer)
@@ -33,30 +68,36 @@ export function HomeMap({ onRequestPickup }: HomeMapProps) {
   }, [requestPending, driverAccepted])
 
   const handleRequestPickup = () => {
+    if (!isInGeofence && !requestPending) {
+      setShowGeofenceError(true)
+      setTimeout(() => setShowGeofenceError(false), 3000)
+      return
+    }
+
     if (requestPending) {
-      // Annuler la demande
       setRequestPending(false)
       setDriverAccepted(false)
       setBusPosition(null)
       setShowToast(false)
     } else {
-      // Nouvelle demande
       setRequestPending(true)
       setShowToast(true)
-      // Masquer le toast après 3 secondes
       setTimeout(() => setShowToast(false), 3000)
     }
   }
 
+  const userInitials = userProfile?.first_name?.[0] || userProfile?.last_name?.[0] || "U"
+  const userAvatar = userProfile?.avatar_url || "/professional-employee-avatar.jpg"
+
   const markers = [
     {
-      position: dakarPort as [number, number],
+      position: currentPosition,
       type: "user" as const,
       label: "Votre position",
+      avatar: userAvatar,
     },
   ]
 
-  // Ajouter le bus si un chauffeur a accepté
   if (driverAccepted && busPosition) {
     markers.push({
       position: busPosition,
@@ -68,23 +109,42 @@ export function HomeMap({ onRequestPickup }: HomeMapProps) {
   return (
     <div className="relative h-full w-full">
       <div className="absolute inset-0 z-0">
-        <Map center={dakarPort} zoom={13} markers={markers} />
+        <Map center={currentPosition} zoom={13} markers={markers} showGeofence={true} />
       </div>
 
       {/* Top Bar */}
       <div className="absolute top-0 left-0 right-0 z-10 p-4 bg-gradient-to-b from-background/80 to-transparent backdrop-blur-sm">
         <div className="flex items-center justify-between">
-          <Button variant="ghost" size="icon" className="h-12 w-12 rounded-full bg-card shadow-lg">
-            <Menu className="h-6 w-6" />
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" size="icon" className="h-12 w-12 rounded-full bg-card shadow-lg">
+              <Menu className="h-6 w-6" />
+            </Button>
+            <Button
+              onClick={() => {
+                setIsOutsideZone(!isOutsideZone)
+                setRequestPending(false)
+                setDriverAccepted(false)
+                setBusPosition(null)
+                setShowToast(false)
+                setShowGeofenceError(false)
+              }}
+              size="sm"
+              variant="secondary"
+              className="shadow-lg text-xs"
+            >
+              {isOutsideZone ? "📍 Hors Zone" : "📍 Dans Zone"}
+            </Button>
+          </div>
           <div className="flex items-center gap-3 bg-card px-4 py-2 rounded-full shadow-lg">
             <div className="h-2 w-2 rounded-full bg-success animate-pulse" />
             <span className="text-sm font-medium">Service Actif</span>
           </div>
-          <Avatar className="h-12 w-12 border-2 border-accent shadow-lg">
-            <AvatarImage src="/professional-employee-avatar.jpg" />
-            <AvatarFallback className="bg-primary text-primary-foreground">EM</AvatarFallback>
-          </Avatar>
+          <button onClick={onOpenProfile}>
+            <Avatar className="h-12 w-12 border-2 border-accent shadow-lg cursor-pointer hover:border-accent/70 transition-colors">
+              <AvatarImage src={userAvatar || "/placeholder.svg"} />
+              <AvatarFallback className="bg-primary text-primary-foreground">{userInitials}</AvatarFallback>
+            </Avatar>
+          </button>
         </div>
       </div>
 
@@ -109,6 +169,17 @@ export function HomeMap({ onRequestPickup }: HomeMapProps) {
           </div>
         </Card>
       </div>
+
+      {showGeofenceError && (
+        <div className="absolute top-44 left-4 right-4 z-20 animate-in slide-in-from-top-5 fade-in duration-300">
+          <Card className="p-4 bg-destructive/90 backdrop-blur-sm border-destructive shadow-lg">
+            <div className="flex items-center gap-2 text-white">
+              <AlertCircle className="h-5 w-5" />
+              <p className="font-medium">Vous êtes en dehors de la zone de ramassage</p>
+            </div>
+          </Card>
+        </div>
+      )}
 
       {showToast && (
         <div className="absolute top-44 left-4 right-4 z-20 animate-in slide-in-from-top-5 fade-in duration-300">
