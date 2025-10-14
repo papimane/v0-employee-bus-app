@@ -29,7 +29,12 @@ export default function LoginForm() {
         email,
         password,
       })
-      if (error) throw error
+      if (error) {
+        if (error.message === "Invalid login credentials") {
+          throw new Error("Identifiants de connexion invalides")
+        }
+        throw error
+      }
 
       await new Promise((resolve) => setTimeout(resolve, 500))
       router.push("/")

@@ -1,12 +1,13 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { MapPin, Navigation, Phone, User, Clock, ArrowLeft } from "lucide-react"
 import { Map } from "./map"
+import { createClient } from "@/lib/supabase/client"
 
 interface Passenger {
   id: string
@@ -15,6 +16,7 @@ interface Passenger {
   address: string
   waitTime: number
   avatar?: string
+  requestId: string
 }
 
 interface DriverViewProps {
@@ -25,35 +27,82 @@ interface DriverViewProps {
 export function DriverView({ onBack, onOpenProfile }: DriverViewProps) {
   const driverPosition: [number, number] = [14.68, -17.45]
 
-  const [passengers] = useState<Passenger[]>([
-    {
-      id: "1",
-      name: "Amadou Diallo",
-      position: [14.6937, -17.4441],
-      address: "Port de Dakar, Avenue du Port",
-      waitTime: 5,
-      avatar: "/african-man-professional.png",
-    },
-    {
-      id: "2",
-      name: "Fatou Sall",
-      position: [14.7, -17.46],
-      address: "Plateau, Rue Mohamed V",
-      waitTime: 8,
-      avatar: "/african-woman-professional.jpg",
-    },
-    {
-      id: "3",
-      name: "Moussa Ndiaye",
-      position: [14.685, -17.435],
-      address: "Médina, Avenue Blaise Diagne",
-      waitTime: 3,
-      avatar: "/african-businessman.png",
-    },
-  ])
-
+  const [passengers, setPassengers] = useState<Passenger[]>([])
   const [selectedPassenger, setSelectedPassenger] = useState<Passenger | null>(null)
   const [isSheetCollapsed, setIsSheetCollapsed] = useState(false)
+
+  useEffect(() => {
+    const supabase = createClient()
+
+    const loadPendingRequests = async () => {
+      try {
+        const { data: requests, error } = await supabase
+          .from("ride_requests")
+          .select(
+            `
+            id,
+            pickup_latitude,
+            pickup_longitude,
+            pickup_address,
+            created_at,
+            passenger_id,
+            profiles:passenger_id (
+              first_name,
+              last_name,
+              avatar_url
+            )
+          `,
+          )
+          .eq("status", "pending")
+          .order("created_at", { ascending: true })
+
+        if (error) throw error
+
+        console.log("[v0] Loaded pending requests:", requests)
+
+        const formattedPassengers: Passenger[] = requests.map((req: any) => {
+          const profile = req.profiles
+          const waitTime = Math.floor((Date.now() - new Date(req.created_at).getTime()) / 60000)
+
+          return {
+            id: req.passenger_id,
+            requestId: req.id,
+            name: `${profile?.first_name || ""} ${profile?.last_name || ""}`.trim() || "Passager",
+            position: [req.pickup_latitude, req.pickup_longitude] as [number, number],
+            address: req.pickup_address || "Adresse inconnue",
+            waitTime: waitTime,
+            avatar: profile?.avatar_url || "/professional-employee.png",
+          }
+        })
+
+        setPassengers(formattedPassengers)
+      } catch (error) {
+        console.error("[v0] Error loading requests:", error)
+      }
+    }
+
+    loadPendingRequests()
+
+    const channel = supabase
+      .channel("ride_requests_changes")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "ride_requests",
+        },
+        (payload) => {
+          console.log("[v0] Ride requests changed:", payload)
+          loadPendingRequests()
+        },
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [])
 
   const route = selectedPassenger ? [driverPosition, selectedPassenger.position] : undefined
 
@@ -75,17 +124,44 @@ export function DriverView({ onBack, onOpenProfile }: DriverViewProps) {
     setSelectedPassenger(passenger)
   }
 
-  const handleStartNavigation = () => {
-    if (selectedPassenger) {
-      // Ouvrir Google Maps ou autre app de navigation
+  const handleStartNavigation = async () => {
+    if (!selectedPassenger) return
+
+    const supabase = createClient()
+
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+      if (!user) throw new Error("User not authenticated")
+
+      const { error } = await supabase
+        .from("ride_requests")
+        .update({
+          status: "accepted",
+          driver_id: user.id,
+          accepted_at: new Date().toISOString(),
+        })
+        .eq("id", selectedPassenger.requestId)
+
+      if (error) throw error
+
+      console.log("[v0] Request accepted:", selectedPassenger.requestId)
+
+      // Ouvrir Google Maps
       const url = `https://www.google.com/maps/dir/?api=1&origin=${driverPosition[0]},${driverPosition[1]}&destination=${selectedPassenger.position[0]},${selectedPassenger.position[1]}`
       window.open(url, "_blank")
+
+      // Réinitialiser la sélection
+      setSelectedPassenger(null)
+    } catch (error) {
+      console.error("[v0] Error accepting request:", error)
     }
   }
 
   return (
     <div className="relative h-full w-full flex flex-col">
-      <div className="flex-1 relative z-0">
+      <div className="flex-1 relative z-0 px-2 md:px-0">
         <Map center={driverPosition} zoom={13} markers={markers} route={route} showGeofence={true} />
       </div>
 
@@ -130,42 +206,48 @@ export function DriverView({ onBack, onOpenProfile }: DriverViewProps) {
                 <Badge className="bg-accent text-accent-foreground">{passengers.length} personnes</Badge>
               </div>
 
-              <div className="space-y-3 max-h-[40vh] overflow-y-auto">
-                {passengers.map((passenger) => (
-                  <Card
-                    key={passenger.id}
-                    className={`p-4 cursor-pointer transition-all hover:shadow-md ${
-                      selectedPassenger?.id === passenger.id ? "border-accent border-2 bg-accent/5" : ""
-                    }`}
-                    onClick={() => handleSelectPassenger(passenger)}
-                  >
-                    <div className="flex items-start gap-3">
-                      <Avatar className="h-12 w-12 border-2 border-muted">
-                        <AvatarImage src={passenger.avatar || "/placeholder.svg"} />
-                        <AvatarFallback className="bg-primary/10 text-primary">
-                          <User className="h-6 w-6" />
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          <p className="font-semibold truncate">{passenger.name}</p>
-                          <Badge variant="outline" className="text-xs">
-                            <Clock className="h-3 w-3 mr-1" />
-                            {passenger.waitTime} min
-                          </Badge>
+              {passengers.length === 0 ? (
+                <Card className="p-6 text-center">
+                  <p className="text-muted-foreground">Aucune demande en attente pour le moment</p>
+                </Card>
+              ) : (
+                <div className="space-y-3 max-h-[40vh] overflow-y-auto">
+                  {passengers.map((passenger) => (
+                    <Card
+                      key={passenger.requestId}
+                      className={`p-4 cursor-pointer transition-all hover:shadow-md ${
+                        selectedPassenger?.requestId === passenger.requestId ? "border-accent border-2 bg-accent/5" : ""
+                      }`}
+                      onClick={() => handleSelectPassenger(passenger)}
+                    >
+                      <div className="flex items-start gap-3">
+                        <Avatar className="h-12 w-12 border-2 border-muted">
+                          <AvatarImage src={passenger.avatar || "/placeholder.svg"} />
+                          <AvatarFallback className="bg-primary/10 text-primary">
+                            <User className="h-6 w-6" />
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <p className="font-semibold truncate">{passenger.name}</p>
+                            <Badge variant="outline" className="text-xs">
+                              <Clock className="h-3 w-3 mr-1" />
+                              {passenger.waitTime} min
+                            </Badge>
+                          </div>
+                          <div className="flex items-start gap-2">
+                            <MapPin className="h-4 w-4 text-muted-foreground flex-shrink-0 mt-0.5" />
+                            <p className="text-sm text-muted-foreground line-clamp-2">{passenger.address}</p>
+                          </div>
                         </div>
-                        <div className="flex items-start gap-2">
-                          <MapPin className="h-4 w-4 text-muted-foreground flex-shrink-0 mt-0.5" />
-                          <p className="text-sm text-muted-foreground line-clamp-2">{passenger.address}</p>
-                        </div>
+                        <Button size="icon" variant="ghost" className="flex-shrink-0">
+                          <Phone className="h-5 w-5" />
+                        </Button>
                       </div>
-                      <Button size="icon" variant="ghost" className="flex-shrink-0">
-                        <Phone className="h-5 w-5" />
-                      </Button>
-                    </div>
-                  </Card>
-                ))}
-              </div>
+                    </Card>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
 
@@ -188,7 +270,7 @@ export function DriverView({ onBack, onOpenProfile }: DriverViewProps) {
                 onClick={handleStartNavigation}
               >
                 <Navigation className="h-5 w-5 mr-2" />
-                Démarrer la Navigation
+                Accepter et Démarrer
               </Button>
             </div>
           )}

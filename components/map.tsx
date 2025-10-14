@@ -61,8 +61,18 @@ export function Map({
 
       if (!L || !mapContainerRef.current) return
 
+      const isMobile = window.innerWidth < 768
+
       // Initialize map
-      const map = L.map(mapContainerRef.current).setView(center, zoom)
+      const map = L.map(mapContainerRef.current, {
+        dragging: !isMobile,
+        touchZoom: !isMobile,
+        scrollWheelZoom: !isMobile,
+        doubleClickZoom: true,
+        boxZoom: false,
+        keyboard: false,
+        tap: !isMobile,
+      }).setView(center, zoom)
 
       // Add OpenStreetMap tiles
       L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
@@ -120,9 +130,9 @@ export function Map({
           html: `
             <div style="position: relative;">
               <div style="position: absolute; inset: 0; animation: ping 1s cubic-bezier(0, 0, 0.2, 1) infinite;">
-                <div style="height: 48px; width: 48px; border-radius: 50%; background-color: rgba(255, 107, 53, 0.3);"></div>
+                <div style="height: 48px; width: 48px; border-radius: 50%; background-color: rgba(8, 175, 108, 0.3);"></div>
               </div>
-              <div style="position: relative; height: 48px; width: 48px; border-radius: 50%; background-color: #FF6B35; display: flex; align-items: center; justify-content: center; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);">
+              <div style="position: relative; height: 48px; width: 48px; border-radius: 50%; background-color: #08AF6C; display: flex; align-items: center; justify-content: center; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);">
                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M8 6v6"/>
                   <path d="M15 6v6"/>
@@ -207,7 +217,7 @@ export function Map({
     // Add new route
     if (route && route.length > 0) {
       routeLayerRef.current = L.polyline(route, {
-        color: "#FF6B35",
+        color: "#08AF6C",
         weight: 4,
         opacity: 0.8,
         dashArray: "10, 10",

@@ -85,14 +85,13 @@
   --sidebar-primary: oklch(0.68 0.18 35);
   --sidebar-primary-foreground: oklch(0.15 0.03 250);
   --sidebar-accent: oklch(0.25 0.03 250);
-  --sidebar-accent-foreground: oklch(0.95 0.01 240);
+  --sidebar-accent-foreground: oklch(0.95 0.01 250);
   --sidebar-border: oklch(0.3 0.03 250);
   --sidebar-ring: oklch(0.68 0.18 35);
 }
 
 @theme inline {
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  /* optional: --font-sans, --font-serif, --font-mono if they are applied in the layout.tsx */
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -107,8 +106,6 @@
   --color-muted-foreground: var(--muted-foreground);
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
-  --color-success: var(--success);
-  --color-success-foreground: var(--success-foreground);
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
   --color-border: var(--border);

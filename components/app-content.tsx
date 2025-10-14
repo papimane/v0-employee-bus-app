@@ -9,6 +9,8 @@ import { LiveTracking } from "./live-tracking"
 import { TripComplete } from "./trip-complete"
 import { ProfilePage } from "./profile-page"
 import { Button } from "./ui/button"
+import { Shield } from "lucide-react"
+import { useRouter } from "next/navigation"
 import type { User } from "@supabase/supabase-js"
 
 type Screen = "home" | "location" | "matching" | "tracking" | "complete" | "driver" | "profile"
@@ -29,6 +31,10 @@ interface AppContentProps {
 export default function AppContent({ user, profile }: AppContentProps) {
   const [currentScreen, setCurrentScreen] = useState<Screen>(profile?.role === "driver" ? "driver" : "home")
   const [isDriverMode, setIsDriverMode] = useState(profile?.role === "driver")
+  const router = useRouter()
+
+  console.log("[v0] User profile role:", profile?.role)
+  console.log("[v0] Is admin:", profile?.role === "admin")
 
   const toggleMode = () => {
     setIsDriverMode(!isDriverMode)
@@ -80,6 +86,17 @@ export default function AppContent({ user, profile }: AppContentProps) {
 
   return (
     <main className="h-screen w-full overflow-hidden">
+      {profile?.role === "admin" && (
+        <Button
+          onClick={() => router.push("/admin")}
+          className="absolute top-4 left-4 z-20 bg-[#08AF6C] text-white hover:bg-[#07965E]"
+          size="sm"
+        >
+          <Shield className="h-4 w-4 mr-1" />
+          Admin
+        </Button>
+      )}
+
       <Button
         onClick={toggleMode}
         className="absolute top-4 right-20 z-20 bg-white/90 text-black hover:bg-white"

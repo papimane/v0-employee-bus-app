@@ -5,6 +5,8 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { MapPin, Menu, Clock, Users, X, AlertCircle } from "lucide-react"
 import { Map } from "./map"
 import { useState, useEffect } from "react"
+import { useGeolocation } from "@/hooks/use-geolocation"
+import { createClient } from "@/lib/supabase/client"
 
 interface HomeMapProps {
   onRequestPickup: () => void
@@ -41,13 +43,18 @@ const DAKAR_PORT_GEOFENCE: [number, number][] = [
 ]
 
 export function HomeMap({ onRequestPickup, onOpenProfile, userProfile }: HomeMapProps) {
+  const { latitude, longitude, error: geoError, loading: geoLoading } = useGeolocation()
+
   const positionInZone: [number, number] = [14.6937, -17.4441]
   const positionOutZone: [number, number] = [14.705017074264646, -17.45701306060759]
 
   const [isOutsideZone, setIsOutsideZone] = useState(false)
-  const currentPosition = isOutsideZone ? positionOutZone : positionInZone
+
+  const currentPosition: [number, number] =
+    latitude !== null && longitude !== null ? [latitude, longitude] : isOutsideZone ? positionOutZone : positionInZone
 
   const [requestPending, setRequestPending] = useState(false)
+  const [currentRequestId, setCurrentRequestId] = useState<string | null>(null)
   const [driverAccepted, setDriverAccepted] = useState(false)
   const [showToast, setShowToast] = useState(false)
   const [isSheetCollapsed, setIsSheetCollapsed] = useState(false)
@@ -57,32 +64,90 @@ export function HomeMap({ onRequestPickup, onOpenProfile, userProfile }: HomeMap
   const isInGeofence = isPointInPolygon(currentPosition, DAKAR_PORT_GEOFENCE)
 
   useEffect(() => {
-    if (requestPending && !driverAccepted) {
-      const timer = setTimeout(() => {
-        setDriverAccepted(true)
-        setBusPosition([14.7037, -17.4541])
-      }, 5000)
+    if (!currentRequestId) return
 
-      return () => clearTimeout(timer)
+    const supabase = createClient()
+    const channel = supabase
+      .channel(`ride_request_${currentRequestId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "ride_requests",
+          filter: `id=eq.${currentRequestId}`,
+        },
+        (payload) => {
+          console.log("[v0] Ride request updated:", payload)
+          if (payload.new.status === "accepted") {
+            setDriverAccepted(true)
+            // Simuler la position du bus (à remplacer par la vraie position du chauffeur)
+            setBusPosition([14.7037, -17.4541])
+          }
+        },
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
     }
-  }, [requestPending, driverAccepted])
+  }, [currentRequestId])
 
-  const handleRequestPickup = () => {
+  const handleRequestPickup = async () => {
     if (!isInGeofence && !requestPending) {
       setShowGeofenceError(true)
       setTimeout(() => setShowGeofenceError(false), 3000)
       return
     }
 
-    if (requestPending) {
-      setRequestPending(false)
-      setDriverAccepted(false)
-      setBusPosition(null)
-      setShowToast(false)
+    const supabase = createClient()
+
+    if (requestPending && currentRequestId) {
+      try {
+        const { error } = await supabase
+          .from("ride_requests")
+          .update({ status: "cancelled" })
+          .eq("id", currentRequestId)
+
+        if (error) throw error
+
+        setRequestPending(false)
+        setCurrentRequestId(null)
+        setDriverAccepted(false)
+        setBusPosition(null)
+        setShowToast(false)
+      } catch (error) {
+        console.error("[v0] Error cancelling request:", error)
+      }
     } else {
-      setRequestPending(true)
-      setShowToast(true)
-      setTimeout(() => setShowToast(false), 3000)
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser()
+        if (!user) throw new Error("User not authenticated")
+
+        const { data, error } = await supabase
+          .from("ride_requests")
+          .insert({
+            passenger_id: user.id,
+            pickup_latitude: currentPosition[0],
+            pickup_longitude: currentPosition[1],
+            pickup_address: "Port de Dakar", // À améliorer avec géocodage inverse
+            status: "pending",
+          })
+          .select()
+          .single()
+
+        if (error) throw error
+
+        console.log("[v0] Ride request created:", data)
+        setCurrentRequestId(data.id)
+        setRequestPending(true)
+        setShowToast(true)
+        setTimeout(() => setShowToast(false), 3000)
+      } catch (error) {
+        console.error("[v0] Error creating request:", error)
+      }
     }
   }
 
@@ -108,7 +173,7 @@ export function HomeMap({ onRequestPickup, onOpenProfile, userProfile }: HomeMap
 
   return (
     <div className="relative h-full w-full">
-      <div className="absolute inset-0 z-0">
+      <div className="absolute inset-0 z-0 px-2 md:px-0">
         <Map center={currentPosition} zoom={13} markers={markers} showGeofence={true} />
       </div>
 
@@ -119,21 +184,24 @@ export function HomeMap({ onRequestPickup, onOpenProfile, userProfile }: HomeMap
             <Button variant="ghost" size="icon" className="h-12 w-12 rounded-full bg-card shadow-lg">
               <Menu className="h-6 w-6" />
             </Button>
-            <Button
-              onClick={() => {
-                setIsOutsideZone(!isOutsideZone)
-                setRequestPending(false)
-                setDriverAccepted(false)
-                setBusPosition(null)
-                setShowToast(false)
-                setShowGeofenceError(false)
-              }}
-              size="sm"
-              variant="secondary"
-              className="shadow-lg text-xs"
-            >
-              {isOutsideZone ? "📍 Hors Zone" : "📍 Dans Zone"}
-            </Button>
+            <div className="bg-card px-3 py-1.5 rounded-full shadow-lg text-xs flex items-center gap-2">
+              {geoLoading ? (
+                <>
+                  <div className="h-2 w-2 rounded-full bg-yellow-500 animate-pulse" />
+                  <span>Localisation...</span>
+                </>
+              ) : geoError ? (
+                <>
+                  <div className="h-2 w-2 rounded-full bg-red-500" />
+                  <span>GPS désactivé</span>
+                </>
+              ) : (
+                <>
+                  <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
+                  <span>GPS actif</span>
+                </>
+              )}
+            </div>
           </div>
           <div className="flex items-center gap-3 bg-card px-4 py-2 rounded-full shadow-lg">
             <div className="h-2 w-2 rounded-full bg-success animate-pulse" />
@@ -148,8 +216,19 @@ export function HomeMap({ onRequestPickup, onOpenProfile, userProfile }: HomeMap
         </div>
       </div>
 
+      {geoError && (
+        <div className="absolute top-24 left-4 right-4 z-20">
+          <Card className="p-3 bg-yellow-500/90 backdrop-blur-sm border-yellow-600 shadow-lg">
+            <div className="flex items-center gap-2 text-white text-sm">
+              <AlertCircle className="h-4 w-4" />
+              <p>{geoError}. Position simulée utilisée.</p>
+            </div>
+          </Card>
+        </div>
+      )}
+
       {/* Quick Stats */}
-      <div className="absolute top-24 left-4 right-4 z-10 flex gap-2">
+      <div className={`absolute ${geoError ? "top-40" : "top-24"} left-4 right-4 z-10 flex gap-2`}>
         <Card className="flex-1 p-3 bg-card/90 backdrop-blur-sm border-accent/20">
           <div className="flex items-center gap-2">
             <Clock className="h-4 w-4 text-accent" />

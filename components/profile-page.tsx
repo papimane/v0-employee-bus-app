@@ -36,6 +36,7 @@ export function ProfilePage({ user, profile, onBack }: ProfilePageProps) {
   const [newPassword, setNewPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
   const [isLoading, setIsLoading] = useState(false)
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
 
@@ -103,9 +104,45 @@ export function ProfilePage({ user, profile, onBack }: ProfilePageProps) {
     router.push("/auth/login")
   }
 
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    const supabase = createClient()
+    setIsUploadingPhoto(true)
+    setError(null)
+
+    try {
+      const fileExt = file.name.split(".").pop()
+      const fileName = `${user.id}-${Date.now()}.${fileExt}`
+      const filePath = `avatars/${fileName}`
+
+      const { error: uploadError } = await supabase.storage.from("avatars").upload(filePath, file, {
+        upsert: true,
+      })
+
+      if (uploadError) throw uploadError
+
+      const {
+        data: { publicUrl },
+      } = supabase.storage.from("avatars").getPublicUrl(filePath)
+
+      const { error: updateError } = await supabase.from("profiles").update({ avatar_url: publicUrl }).eq("id", user.id)
+
+      if (updateError) throw updateError
+
+      setAvatarUrl(publicUrl)
+      setSuccess("Photo de profil mise à jour avec succès")
+      router.refresh()
+    } catch (error: unknown) {
+      setError(error instanceof Error ? error.message : "Erreur lors de l'upload de la photo")
+    } finally {
+      setIsUploadingPhoto(false)
+    }
+  }
+
   return (
     <div className="relative h-full w-full bg-gradient-to-br from-[#0A1628] to-[#1a2942] overflow-y-auto">
-      {/* Header */}
       <div className="absolute top-0 left-0 right-0 z-10 p-4 bg-gradient-to-b from-black/50 to-transparent">
         <Button variant="ghost" size="icon" onClick={onBack} className="text-white hover:bg-white/10">
           <ArrowLeft className="h-6 w-6" />
@@ -113,10 +150,9 @@ export function ProfilePage({ user, profile, onBack }: ProfilePageProps) {
       </div>
 
       <div className="container max-w-2xl mx-auto p-6 pt-20">
-        {/* Avatar Section */}
         <div className="flex flex-col items-center mb-8">
           <div className="relative">
-            <div className="h-24 w-24 rounded-full bg-gradient-to-br from-[#FF6B35] to-[#F7931E] flex items-center justify-center overflow-hidden">
+            <div className="h-24 w-24 rounded-full bg-gradient-to-br from-[#08AF6C] to-[#07965E] flex items-center justify-center overflow-hidden">
               {avatarUrl ? (
                 <img src={avatarUrl || "/placeholder.svg"} alt="Avatar" className="h-full w-full object-cover" />
               ) : (
@@ -125,17 +161,26 @@ export function ProfilePage({ user, profile, onBack }: ProfilePageProps) {
                 </span>
               )}
             </div>
+            <input
+              type="file"
+              id="avatar-upload"
+              accept="image/*"
+              className="hidden"
+              onChange={handlePhotoUpload}
+              disabled={isUploadingPhoto}
+            />
             <Button
               size="icon"
-              className="absolute bottom-0 right-0 h-8 w-8 rounded-full bg-[#FF6B35] hover:bg-[#F7931E]"
+              className="absolute bottom-0 right-0 h-8 w-8 rounded-full bg-[#08AF6C] hover:bg-[#07965E]"
+              onClick={() => document.getElementById("avatar-upload")?.click()}
+              disabled={isUploadingPhoto}
             >
-              <Camera className="h-4 w-4" />
+              {isUploadingPhoto ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
             </Button>
           </div>
           <p className="mt-4 text-sm text-white/60">{user.email}</p>
         </div>
 
-        {/* Profile Form */}
         <Card className="mb-6 border-white/10 bg-white/5">
           <CardHeader>
             <CardTitle className="text-white">Informations personnelles</CardTitle>
@@ -191,7 +236,7 @@ export function ProfilePage({ user, profile, onBack }: ProfilePageProps) {
               </div>
               {error && <p className="text-sm text-red-400">{error}</p>}
               {success && <p className="text-sm text-green-400">{success}</p>}
-              <Button type="submit" className="w-full bg-[#FF6B35] hover:bg-[#F7931E]" disabled={isLoading}>
+              <Button type="submit" className="w-full bg-[#08AF6C] hover:bg-[#07965E]" disabled={isLoading}>
                 {isLoading ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -205,7 +250,6 @@ export function ProfilePage({ user, profile, onBack }: ProfilePageProps) {
           </CardContent>
         </Card>
 
-        {/* Password Change Form */}
         <Card className="mb-6 border-white/10 bg-white/5">
           <CardHeader>
             <CardTitle className="text-white">Changer le mot de passe</CardTitle>
@@ -238,7 +282,7 @@ export function ProfilePage({ user, profile, onBack }: ProfilePageProps) {
               </div>
               <Button
                 type="submit"
-                className="w-full bg-[#FF6B35] hover:bg-[#F7931E]"
+                className="w-full bg-[#08AF6C] hover:bg-[#07965E]"
                 disabled={isLoading || !newPassword}
               >
                 {isLoading ? (
@@ -254,7 +298,6 @@ export function ProfilePage({ user, profile, onBack }: ProfilePageProps) {
           </CardContent>
         </Card>
 
-        {/* Sign Out Button */}
         <Button
           onClick={handleSignOut}
           variant="outline"
