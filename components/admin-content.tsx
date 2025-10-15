@@ -4,10 +4,11 @@ import { useState } from "react"
 import type { User } from "@supabase/supabase-js"
 import { DriversManagement } from "./drivers-management"
 import { BusesManagement } from "./buses-management"
+import { PassengersManagement } from "./passengers-management"
 import { AdminProfilePage } from "./admin-profile-page"
 import { Button } from "./ui/button"
 import { useRouter } from "next/navigation"
-import { ArrowLeft, Users, Bus } from "lucide-react"
+import { ArrowLeft, Users, Bus, UserCircle } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar"
 
 interface AdminContentProps {
@@ -16,7 +17,7 @@ interface AdminContentProps {
 }
 
 export function AdminContent({ user, profile }: AdminContentProps) {
-  const [activeTab, setActiveTab] = useState<"drivers" | "buses">("drivers")
+  const [activeTab, setActiveTab] = useState<"drivers" | "buses" | "passengers">("drivers")
   const [showProfile, setShowProfile] = useState(false)
   const router = useRouter()
 
@@ -83,10 +84,29 @@ export function AdminContent({ user, profile }: AdminContentProps) {
           <Bus className="h-5 w-5" />
           Bus
         </button>
+        <button
+          onClick={() => setActiveTab("passengers")}
+          className={`flex-1 py-4 px-6 font-medium transition-colors flex items-center justify-center gap-2 ${
+            activeTab === "passengers"
+              ? "border-b-2 border-primary text-primary"
+              : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <UserCircle className="h-5 w-5" />
+          Passagers
+        </button>
       </div>
 
       {/* Content */}
-      <div className="p-4">{activeTab === "drivers" ? <DriversManagement /> : <BusesManagement />}</div>
+      <div className="p-4">
+        {activeTab === "drivers" ? (
+          <DriversManagement />
+        ) : activeTab === "buses" ? (
+          <BusesManagement />
+        ) : (
+          <PassengersManagement />
+        )}
+      </div>
     </div>
   )
 }

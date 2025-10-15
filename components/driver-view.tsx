@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge"
 import { MapPin, Navigation, Phone, User, Clock, ArrowLeft } from "lucide-react"
 import { Map } from "./map"
 import { createClient } from "@/lib/supabase/client"
+import { acceptRideRequest } from "@/app/actions/ride-actions"
 
 interface Passenger {
   id: string
@@ -135,16 +136,11 @@ export function DriverView({ onBack, onOpenProfile }: DriverViewProps) {
       } = await supabase.auth.getUser()
       if (!user) throw new Error("User not authenticated")
 
-      const { error } = await supabase
-        .from("ride_requests")
-        .update({
-          status: "accepted",
-          driver_id: user.id,
-          accepted_at: new Date().toISOString(),
-        })
-        .eq("id", selectedPassenger.requestId)
+      const result = await acceptRideRequest(selectedPassenger.requestId, user.id)
 
-      if (error) throw error
+      if (!result.success) {
+        throw new Error(result.error || "Failed to accept request")
+      }
 
       console.log("[v0] Request accepted:", selectedPassenger.requestId)
 
@@ -224,7 +220,7 @@ export function DriverView({ onBack, onOpenProfile }: DriverViewProps) {
                         <Avatar className="h-12 w-12 border-2 border-muted">
                           <AvatarImage src={passenger.avatar || "/placeholder.svg"} />
                           <AvatarFallback className="bg-primary/10 text-primary">
-                            <User className="h-6 w-6" />
+                            <User className="h-5 w-5" />
                           </AvatarFallback>
                         </Avatar>
                         <div className="flex-1 min-w-0">

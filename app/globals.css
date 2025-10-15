@@ -4,49 +4,33 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  /* Custom theme for shuttle bus app - deep blue with coral accents */
   --background: oklch(0.98 0.005 240);
   --foreground: oklch(0.15 0.02 240);
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.15 0.02 240);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.15 0.02 240);
-
-  /* Primary: Deep navy blue */
   --primary: oklch(0.25 0.08 250);
   --primary-foreground: oklch(0.98 0.005 240);
-
-  /* Secondary: Coral/Orange accent */
   --secondary: rgb(203, 5, 56);
   --secondary-foreground: oklch(0.98 0.005 240);
-
   --muted: oklch(0.95 0.01 240);
   --muted-foreground: oklch(0.5 0.02 240);
-
-  /* Accent: Bright coral for CTAs */
   --accent: rgb(8, 175, 108);
   --accent-foreground: oklch(0.98 0.005 240);
-
-  /* Success: Green for valid zones */
   --success: oklch(0.65 0.15 150);
   --success-foreground: oklch(0.98 0.005 240);
-
-  /* Destructive: Red for alerts */
   --destructive: oklch(0.55 0.22 25);
   --destructive-foreground: oklch(0.98 0.005 240);
-
   --border: oklch(0.9 0.01 240);
   --input: oklch(0.9 0.01 240);
   --ring: oklch(0.68 0.18 35);
-
   --chart-1: oklch(0.68 0.18 35);
   --chart-2: oklch(0.65 0.15 150);
   --chart-3: oklch(0.55 0.22 25);
   --chart-4: oklch(0.6 0.15 200);
   --chart-5: oklch(0.7 0.12 280);
-
   --radius: 1rem;
-
   --sidebar: oklch(0.98 0.005 240);
   --sidebar-foreground: oklch(0.15 0.02 240);
   --sidebar-primary: oklch(0.25 0.08 250);
@@ -58,7 +42,6 @@
 }
 
 .dark {
-  /* Dark mode with deep navy background */
   --background: oklch(0.15 0.03 250);
   --foreground: oklch(0.95 0.01 240);
   --card: oklch(0.2 0.03 250);
@@ -137,4 +120,21 @@
   body {
     @apply bg-background text-foreground;
   }
+}
+
+@keyframes ping {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  75%,
+  100% {
+    transform: scale(2);
+    opacity: 0;
+  }
+}
+
+.leaflet-container {
+  width: 100%;
+  height: 100%;
 }

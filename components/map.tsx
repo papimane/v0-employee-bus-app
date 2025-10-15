@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef } from "react"
+import { useEffect, useRef, useState } from "react"
 
 interface MapProps {
   center: [number, number]
@@ -40,6 +40,7 @@ export function Map({
   const routeLayerRef = useRef<any>(null)
   const geofenceLayerRef = useRef<any>(null)
   const leafletLoadedRef = useRef(false)
+  const [calculatedRoute, setCalculatedRoute] = useState<[number, number][] | null>(null)
 
   useEffect(() => {
     if (!mapContainerRef.current || mapRef.current || leafletLoadedRef.current) return
@@ -214,36 +215,49 @@ export function Map({
       routeLayerRef.current = null
     }
 
+    const routeToDisplay = calculatedRoute || route
+
     // Add new route
-    if (route && route.length > 0) {
-      routeLayerRef.current = L.polyline(route, {
+    if (routeToDisplay && routeToDisplay.length > 0) {
+      routeLayerRef.current = L.polyline(routeToDisplay, {
         color: "#08AF6C",
         weight: 4,
         opacity: 0.8,
-        dashArray: "10, 10",
+        dashArray: calculatedRoute ? "" : "10, 10",
       }).addTo(mapRef.current)
 
       // Fit bounds to show entire route
       mapRef.current.fitBounds(routeLayerRef.current.getBounds(), { padding: [50, 50] })
     }
+  }, [calculatedRoute, route])
+
+  const fetchRoute = async (start: [number, number], end: [number, number]) => {
+    try {
+      const response = await fetch(
+        `https://router.project-osrm.org/route/v1/driving/${start[1]},${start[0]};${end[1]},${end[0]}?overview=full&geometries=geojson`,
+      )
+      const data = await response.json()
+
+      if (data.routes && data.routes[0]) {
+        const coordinates = data.routes[0].geometry.coordinates.map(
+          (coord: [number, number]) => [coord[1], coord[0]] as [number, number],
+        )
+        setCalculatedRoute(coordinates)
+      }
+    } catch (error) {
+      console.error("[v0] Error fetching route:", error)
+      // Fallback: utiliser une ligne droite si l'API échoue
+      setCalculatedRoute([start, end])
+    }
+  }
+
+  useEffect(() => {
+    if (route && route.length >= 2) {
+      fetchRoute(route[0], route[route.length - 1])
+    } else {
+      setCalculatedRoute(null)
+    }
   }, [route])
 
-  return (
-    <>
-      <style jsx global>{`
-        @keyframes ping {
-          75%,
-          100% {
-            transform: scale(2);
-            opacity: 0;
-          }
-        }
-        .leaflet-container {
-          width: 100%;
-          height: 100%;
-        }
-      `}</style>
-      <div ref={mapContainerRef} className={`w-full h-full ${className}`} />
-    </>
-  )
+  return <div ref={mapContainerRef} className={`w-full h-full ${className}`} />
 }

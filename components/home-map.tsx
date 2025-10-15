@@ -7,6 +7,7 @@ import { Map } from "./map"
 import { useState, useEffect } from "react"
 import { useGeolocation } from "@/hooks/use-geolocation"
 import { createClient } from "@/lib/supabase/client"
+import { useToast } from "@/hooks/use-toast"
 
 interface HomeMapProps {
   onRequestPickup: () => void
@@ -44,6 +45,7 @@ const DAKAR_PORT_GEOFENCE: [number, number][] = [
 
 export function HomeMap({ onRequestPickup, onOpenProfile, userProfile }: HomeMapProps) {
   const { latitude, longitude, error: geoError, loading: geoLoading } = useGeolocation()
+  const { toast } = useToast()
 
   const positionInZone: [number, number] = [14.6937, -17.4441]
   const positionOutZone: [number, number] = [14.705017074264646, -17.45701306060759]
@@ -60,6 +62,7 @@ export function HomeMap({ onRequestPickup, onOpenProfile, userProfile }: HomeMap
   const [isSheetCollapsed, setIsSheetCollapsed] = useState(false)
   const [busPosition, setBusPosition] = useState<[number, number] | null>(null)
   const [showGeofenceError, setShowGeofenceError] = useState(false)
+  const [isCreatingRequest, setIsCreatingRequest] = useState(false)
 
   const isInGeofence = isPointInPolygon(currentPosition, DAKAR_PORT_GEOFENCE)
 
@@ -94,6 +97,8 @@ export function HomeMap({ onRequestPickup, onOpenProfile, userProfile }: HomeMap
   }, [currentRequestId])
 
   const handleRequestPickup = async () => {
+    if (isCreatingRequest) return
+
     if (!isInGeofence && !requestPending) {
       setShowGeofenceError(true)
       setTimeout(() => setShowGeofenceError(false), 3000)
@@ -103,6 +108,7 @@ export function HomeMap({ onRequestPickup, onOpenProfile, userProfile }: HomeMap
     const supabase = createClient()
 
     if (requestPending && currentRequestId) {
+      setIsCreatingRequest(true)
       try {
         const { error } = await supabase
           .from("ride_requests")
@@ -118,13 +124,41 @@ export function HomeMap({ onRequestPickup, onOpenProfile, userProfile }: HomeMap
         setShowToast(false)
       } catch (error) {
         console.error("[v0] Error cancelling request:", error)
+        toast({
+          title: "Erreur",
+          description: "Impossible d'annuler la demande. Veuillez réessayer.",
+          variant: "destructive",
+        })
+      } finally {
+        setIsCreatingRequest(false)
       }
     } else {
+      setIsCreatingRequest(true)
       try {
         const {
           data: { user },
         } = await supabase.auth.getUser()
         if (!user) throw new Error("User not authenticated")
+
+        const { data: existingRequests, error: checkError } = await supabase
+          .from("ride_requests")
+          .select("id, status")
+          .eq("passenger_id", user.id)
+          .in("status", ["pending", "accepted"])
+          .maybeSingle()
+
+        if (checkError) throw checkError
+
+        if (existingRequests) {
+          toast({
+            title: "Demande en cours",
+            description:
+              "Vous avez déjà une demande de ramassage en cours. Veuillez l'annuler avant d'en créer une nouvelle.",
+            variant: "destructive",
+          })
+          setIsCreatingRequest(false)
+          return
+        }
 
         const { data, error } = await supabase
           .from("ride_requests")
@@ -132,13 +166,25 @@ export function HomeMap({ onRequestPickup, onOpenProfile, userProfile }: HomeMap
             passenger_id: user.id,
             pickup_latitude: currentPosition[0],
             pickup_longitude: currentPosition[1],
-            pickup_address: "Port de Dakar", // À améliorer avec géocodage inverse
+            pickup_address: "Port de Dakar",
             status: "pending",
           })
           .select()
           .single()
 
-        if (error) throw error
+        if (error) {
+          if (error.code === "23505") {
+            toast({
+              title: "Demande en cours",
+              description: "Vous avez déjà une demande de ramassage en cours.",
+              variant: "destructive",
+            })
+          } else {
+            throw error
+          }
+          setIsCreatingRequest(false)
+          return
+        }
 
         console.log("[v0] Ride request created:", data)
         setCurrentRequestId(data.id)
@@ -147,6 +193,13 @@ export function HomeMap({ onRequestPickup, onOpenProfile, userProfile }: HomeMap
         setTimeout(() => setShowToast(false), 3000)
       } catch (error) {
         console.error("[v0] Error creating request:", error)
+        toast({
+          title: "Erreur",
+          description: "Impossible de créer la demande. Veuillez réessayer.",
+          variant: "destructive",
+        })
+      } finally {
+        setIsCreatingRequest(false)
       }
     }
   }
@@ -295,14 +348,20 @@ export function HomeMap({ onRequestPickup, onOpenProfile, userProfile }: HomeMap
 
           <Button
             onClick={handleRequestPickup}
+            disabled={isCreatingRequest}
             size="lg"
             className={`w-full h-14 text-lg font-semibold shadow-lg transition-all duration-300 ${
               requestPending
                 ? "bg-black hover:bg-black/90 text-white"
                 : "bg-accent hover:bg-accent/90 text-accent-foreground shadow-accent/20"
-            }`}
+            } disabled:opacity-50 disabled:cursor-not-allowed`}
           >
-            {requestPending ? (
+            {isCreatingRequest ? (
+              <span className="flex items-center gap-2">
+                <div className="h-5 w-5 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                {requestPending ? "Annulation..." : "Création..."}
+              </span>
+            ) : requestPending ? (
               <span className="flex items-center gap-2">
                 <X className="h-5 w-5" />
                 Annuler ma demande
