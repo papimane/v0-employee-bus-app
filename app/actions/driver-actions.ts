@@ -3,6 +3,9 @@
 import { createAdminClient } from "@/lib/supabase/server"
 
 function getAppUrl() {
+  if (process.env.NEXT_PUBLIC_APP_URL) {
+    return process.env.NEXT_PUBLIC_APP_URL
+  }
   // En production/preview sur Vercel, utiliser VERCEL_URL
   if (process.env.VERCEL_URL) {
     return `https://${process.env.VERCEL_URL}`

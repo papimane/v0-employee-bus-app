@@ -23,8 +23,9 @@ export default function ForgotPasswordForm() {
     setError(null)
 
     try {
-      const redirectUrl =
-        typeof window !== "undefined"
+      const redirectUrl = process.env.NEXT_PUBLIC_APP_URL
+        ? `${process.env.NEXT_PUBLIC_APP_URL}/auth/reset-password`
+        : typeof window !== "undefined"
           ? `${window.location.origin}/auth/reset-password`
           : "http://localhost:3000/auth/reset-password"
 
