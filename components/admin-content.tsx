@@ -4,9 +4,11 @@ import { useState } from "react"
 import type { User } from "@supabase/supabase-js"
 import { DriversManagement } from "./drivers-management"
 import { BusesManagement } from "./buses-management"
+import { AdminProfilePage } from "./admin-profile-page"
 import { Button } from "./ui/button"
 import { useRouter } from "next/navigation"
 import { ArrowLeft, Users, Bus } from "lucide-react"
+import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar"
 
 interface AdminContentProps {
   user: User
@@ -15,7 +17,12 @@ interface AdminContentProps {
 
 export function AdminContent({ user, profile }: AdminContentProps) {
   const [activeTab, setActiveTab] = useState<"drivers" | "buses">("drivers")
+  const [showProfile, setShowProfile] = useState(false)
   const router = useRouter()
+
+  if (showProfile) {
+    return <AdminProfilePage user={user} profile={profile} onBack={() => setShowProfile(false)} />
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -32,9 +39,24 @@ export function AdminContent({ user, profile }: AdminContentProps) {
           </Button>
           <h1 className="text-xl font-bold">Administration</h1>
         </div>
-        <div className="text-sm">
-          {profile.first_name} {profile.last_name}
-        </div>
+        <button
+          onClick={() => setShowProfile(true)}
+          className="flex items-center gap-2 hover:opacity-80 transition-opacity"
+        >
+          <Avatar className="h-10 w-10 border-2 border-primary-foreground/20">
+            <AvatarImage src={profile.avatar_url || ""} alt={`${profile.first_name} ${profile.last_name}`} />
+            <AvatarFallback className="bg-[#08AF6C] text-white">
+              {profile.first_name?.[0]?.toUpperCase() || "A"}
+              {profile.last_name?.[0]?.toUpperCase() || "D"}
+            </AvatarFallback>
+          </Avatar>
+          <div className="text-sm text-right hidden md:block">
+            <div className="font-medium">
+              {profile.first_name} {profile.last_name}
+            </div>
+            <div className="text-xs opacity-75">Administrateur</div>
+          </div>
+        </button>
       </div>
 
       {/* Tabs */}

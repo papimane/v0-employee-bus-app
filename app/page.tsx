@@ -14,5 +14,9 @@ export default async function HomePage() {
 
   const { data: profile } = await supabase.from("profiles").select("*").eq("id", user.id).single()
 
+  if (profile?.role === "admin") {
+    redirect("/admin")
+  }
+
   return <AppContent user={user} profile={profile} />
 }

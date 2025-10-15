@@ -1,15 +1,15 @@
 "use client"
 
 import type React from "react"
-
 import { useState, useEffect } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "./ui/button"
 import { Input } from "./ui/input"
 import { Label } from "./ui/label"
 import { Card } from "./ui/card"
-import { Plus, Pencil, Trash2 } from "lucide-react"
+import { Plus, Pencil, Trash2, Camera, Loader2, Mail } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
+import { inviteDriver, resendDriverInvitation, checkDriverActivation } from "@/app/actions/driver-actions"
 
 interface Driver {
   id: string
@@ -20,6 +20,7 @@ interface Driver {
   license_number: string
   photo_url: string | null
   is_active: boolean
+  user_id?: string
 }
 
 export function DriversManagement() {
@@ -38,6 +39,11 @@ export function DriversManagement() {
     license_number: "",
     photo_url: "",
   })
+
+  const [photoFile, setPhotoFile] = useState<File | null>(null)
+  const [photoPreview, setPhotoPreview] = useState<string>("")
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false)
+  const [driverActivationStatus, setDriverActivationStatus] = useState<Record<string, boolean>>({})
 
   useEffect(() => {
     loadDrivers()
@@ -59,11 +65,63 @@ export function DriversManagement() {
     setIsLoading(false)
   }
 
+  useEffect(() => {
+    async function checkActivations() {
+      const statuses: Record<string, boolean> = {}
+      for (const driver of drivers) {
+        if (driver.user_id) {
+          const result = await checkDriverActivation(driver.user_id)
+          if (result.success) {
+            statuses[driver.id] = result.isActivated || false
+          }
+        }
+      }
+      setDriverActivationStatus(statuses)
+    }
+    if (drivers.length > 0) {
+      checkActivations()
+    }
+  }, [drivers])
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
 
+    let photoUrl = formData.photo_url
+
+    if (photoFile) {
+      setIsUploadingPhoto(true)
+      try {
+        const fileExt = photoFile.name.split(".").pop()
+        const fileName = `driver-${Date.now()}.${fileExt}`
+        const filePath = `avatars/${fileName}`
+
+        const { error: uploadError } = await supabase.storage.from("avatars").upload(filePath, photoFile, {
+          upsert: true,
+        })
+
+        if (uploadError) throw uploadError
+
+        const {
+          data: { publicUrl },
+        } = supabase.storage.from("avatars").getPublicUrl(filePath)
+
+        photoUrl = publicUrl
+      } catch (error) {
+        toast({
+          title: "Erreur",
+          description: "Impossible d'uploader la photo",
+          variant: "destructive",
+        })
+        setIsUploadingPhoto(false)
+        return
+      }
+      setIsUploadingPhoto(false)
+    }
+
+    const driverData = { ...formData, photo_url: photoUrl }
+
     if (editingDriver) {
-      const { error } = await supabase.from("drivers").update(formData).eq("id", editingDriver.id)
+      const { error } = await supabase.from("drivers").update(driverData).eq("id", editingDriver.id)
 
       if (error) {
         toast({
@@ -77,18 +135,38 @@ export function DriversManagement() {
         loadDrivers()
       }
     } else {
-      const { error } = await supabase.from("drivers").insert([formData])
+      try {
+        const result = await inviteDriver(formData.email, formData.first_name, formData.last_name, formData.phone)
 
-      if (error) {
+        if (!result.success) {
+          throw new Error(result.error)
+        }
+
+        const { error: driverError } = await supabase.from("drivers").insert([
+          {
+            ...driverData,
+            user_id: result.userId,
+          },
+        ])
+
+        if (driverError) throw driverError
+
+        if (result.userId) {
+          await supabase.from("profiles").update({ role: "driver" }).eq("id", result.userId)
+        }
+
         toast({
-          title: "Erreur",
-          description: "Impossible d'ajouter le chauffeur",
-          variant: "destructive",
+          title: "Succès",
+          description: "Chauffeur ajouté avec succès. Un email d'activation a été envoyé.",
         })
-      } else {
-        toast({ title: "Succès", description: "Chauffeur ajouté avec succès" })
         resetForm()
         loadDrivers()
+      } catch (error) {
+        toast({
+          title: "Erreur",
+          description: error instanceof Error ? error.message : "Impossible d'ajouter le chauffeur",
+          variant: "destructive",
+        })
       }
     }
   }
@@ -110,6 +188,36 @@ export function DriversManagement() {
     }
   }
 
+  async function handleResendActivation(driver: Driver) {
+    if (!driver.user_id) {
+      toast({
+        title: "Erreur",
+        description: "Ce chauffeur n'a pas de compte utilisateur associé",
+        variant: "destructive",
+      })
+      return
+    }
+
+    try {
+      const result = await resendDriverInvitation(driver.email)
+
+      if (!result.success) {
+        throw new Error(result.error)
+      }
+
+      toast({
+        title: "Succès",
+        description: "Email d'activation renvoyé avec succès",
+      })
+    } catch (error) {
+      toast({
+        title: "Erreur",
+        description: error instanceof Error ? error.message : "Impossible de renvoyer l'activation",
+        variant: "destructive",
+      })
+    }
+  }
+
   function resetForm() {
     setFormData({
       first_name: "",
@@ -119,6 +227,8 @@ export function DriversManagement() {
       license_number: "",
       photo_url: "",
     })
+    setPhotoFile(null)
+    setPhotoPreview("")
     setEditingDriver(null)
     setShowForm(false)
   }
@@ -132,8 +242,21 @@ export function DriversManagement() {
       license_number: driver.license_number,
       photo_url: driver.photo_url || "",
     })
+    setPhotoPreview(driver.photo_url || "")
     setEditingDriver(driver)
     setShowForm(true)
+  }
+
+  const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      setPhotoFile(file)
+      const reader = new FileReader()
+      reader.onloadend = () => {
+        setPhotoPreview(reader.result as string)
+      }
+      reader.readAsDataURL(file)
+    }
   }
 
   if (isLoading) {
@@ -156,6 +279,42 @@ export function DriversManagement() {
             {editingDriver ? "Modifier le chauffeur" : "Nouveau chauffeur"}
           </h3>
           <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="flex justify-center mb-4">
+              <div className="relative">
+                <div className="h-24 w-24 rounded-full bg-muted flex items-center justify-center overflow-hidden">
+                  {photoPreview ? (
+                    <img
+                      src={photoPreview || "/placeholder.svg"}
+                      alt="Preview"
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    <span className="text-2xl font-bold text-muted-foreground">
+                      {formData.first_name[0] || "?"}
+                      {formData.last_name[0] || "?"}
+                    </span>
+                  )}
+                </div>
+                <input
+                  type="file"
+                  id="driver-photo-upload"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handlePhotoChange}
+                  disabled={isUploadingPhoto}
+                />
+                <Button
+                  type="button"
+                  size="icon"
+                  className="absolute bottom-0 right-0 h-8 w-8 rounded-full bg-[#08AF6C] hover:bg-[#07965E]"
+                  onClick={() => document.getElementById("driver-photo-upload")?.click()}
+                  disabled={isUploadingPhoto}
+                >
+                  {isUploadingPhoto ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
+                </Button>
+              </div>
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="first_name">Prénom</Label>
@@ -214,7 +373,18 @@ export function DriversManagement() {
               </div>
             </div>
             <div className="flex gap-2">
-              <Button type="submit">{editingDriver ? "Modifier" : "Ajouter"}</Button>
+              <Button type="submit" disabled={isUploadingPhoto}>
+                {isUploadingPhoto ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Upload...
+                  </>
+                ) : editingDriver ? (
+                  "Modifier"
+                ) : (
+                  "Ajouter"
+                )}
+              </Button>
               <Button type="button" variant="outline" onClick={resetForm}>
                 Annuler
               </Button>
@@ -248,12 +418,31 @@ export function DriversManagement() {
                 <p className="text-sm text-muted-foreground">{driver.email}</p>
                 <p className="text-sm text-muted-foreground">{driver.phone}</p>
                 <p className="text-xs text-muted-foreground mt-1">Permis: {driver.license_number}</p>
+                {driver.user_id && (
+                  <p className="text-xs mt-1">
+                    {driverActivationStatus[driver.id] ? (
+                      <span className="text-green-600">✓ Compte activé</span>
+                    ) : (
+                      <span className="text-orange-600">⚠ En attente d'activation</span>
+                    )}
+                  </p>
+                )}
               </div>
             </div>
             <div className="flex gap-2 mt-4">
               <Button size="sm" variant="outline" onClick={() => editDriver(driver)}>
                 <Pencil className="h-4 w-4" />
               </Button>
+              {driver.user_id && !driverActivationStatus[driver.id] && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => handleResendActivation(driver)}
+                  title="Renvoyer l'email d'activation"
+                >
+                  <Mail className="h-4 w-4" />
+                </Button>
+              )}
               <Button size="sm" variant="destructive" onClick={() => handleDelete(driver.id)}>
                 <Trash2 className="h-4 w-4" />
               </Button>

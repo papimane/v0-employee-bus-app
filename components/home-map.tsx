@@ -2,7 +2,7 @@
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { MapPin, Menu, Clock, Users, X, AlertCircle } from "lucide-react"
+import { Menu, Clock, Users, X, AlertCircle } from "lucide-react"
 import { Map } from "./map"
 import { useState, useEffect } from "react"
 import { useGeolocation } from "@/hooks/use-geolocation"
@@ -289,31 +289,6 @@ export function HomeMap({ onRequestPickup, onOpenProfile, userProfile }: HomeMap
                 <p className="text-muted-foreground text-pretty">
                   Demandez un ramassage et nous vous mettrons en relation avec le bus le plus proche
                 </p>
-              </div>
-
-              {/* Favorite Stops */}
-              <div className="space-y-2">
-                <p className="text-sm font-medium text-muted-foreground">Arrêts Récents</p>
-                <div className="space-y-2">
-                  <button className="w-full flex items-center gap-3 p-3 rounded-xl bg-muted/50 hover:bg-muted transition-colors text-left">
-                    <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
-                      <MapPin className="h-5 w-5 text-primary" />
-                    </div>
-                    <div className="flex-1">
-                      <p className="font-medium">Bureau Principal</p>
-                      <p className="text-sm text-muted-foreground">123 Avenue du Parc d'Affaires</p>
-                    </div>
-                  </button>
-                  <button className="w-full flex items-center gap-3 p-3 rounded-xl bg-muted/50 hover:bg-muted transition-colors text-left">
-                    <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
-                      <MapPin className="h-5 w-5 text-primary" />
-                    </div>
-                    <div className="flex-1">
-                      <p className="font-medium">Campus Nord</p>
-                      <p className="text-sm text-muted-foreground">456 Allée de l'Innovation</p>
-                    </div>
-                  </button>
-                </div>
               </div>
             </div>
           </div>
