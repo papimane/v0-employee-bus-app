@@ -31,12 +31,14 @@ export function DriverView({ onBack, onOpenProfile }: DriverViewProps) {
   const [passengers, setPassengers] = useState<Passenger[]>([])
   const [selectedPassenger, setSelectedPassenger] = useState<Passenger | null>(null)
   const [isSheetCollapsed, setIsSheetCollapsed] = useState(false)
+  const [isAccepting, setIsAccepting] = useState(false)
 
   useEffect(() => {
     const supabase = createClient()
 
     const loadPendingRequests = async () => {
       try {
+        console.log("[v0] Loading pending requests...")
         const { data: requests, error } = await supabase
           .from("ride_requests")
           .select(
@@ -57,7 +59,10 @@ export function DriverView({ onBack, onOpenProfile }: DriverViewProps) {
           .eq("status", "pending")
           .order("created_at", { ascending: true })
 
-        if (error) throw error
+        if (error) {
+          console.error("[v0] Error loading requests:", error)
+          throw error
+        }
 
         console.log("[v0] Loaded pending requests:", requests)
 
@@ -126,11 +131,13 @@ export function DriverView({ onBack, onOpenProfile }: DriverViewProps) {
   }
 
   const handleStartNavigation = async () => {
-    if (!selectedPassenger) return
+    if (!selectedPassenger || isAccepting) return
 
+    setIsAccepting(true)
     const supabase = createClient()
 
     try {
+      console.log("[v0] Accepting request:", selectedPassenger.requestId)
       const {
         data: { user },
       } = await supabase.auth.getUser()
@@ -142,16 +149,17 @@ export function DriverView({ onBack, onOpenProfile }: DriverViewProps) {
         throw new Error(result.error || "Failed to accept request")
       }
 
-      console.log("[v0] Request accepted:", selectedPassenger.requestId)
+      console.log("[v0] Request accepted successfully:", selectedPassenger.requestId)
 
-      // Ouvrir Google Maps
       const url = `https://www.google.com/maps/dir/?api=1&origin=${driverPosition[0]},${driverPosition[1]}&destination=${selectedPassenger.position[0]},${selectedPassenger.position[1]}`
       window.open(url, "_blank")
 
-      // Réinitialiser la sélection
       setSelectedPassenger(null)
     } catch (error) {
       console.error("[v0] Error accepting request:", error)
+      alert("Erreur lors de l'acceptation de la demande. Veuillez réessayer.")
+    } finally {
+      setIsAccepting(false)
     }
   }
 
@@ -164,9 +172,11 @@ export function DriverView({ onBack, onOpenProfile }: DriverViewProps) {
       {/* Top Bar */}
       <div className="absolute top-0 left-0 right-0 z-10 p-4 bg-gradient-to-b from-background/80 to-transparent backdrop-blur-sm">
         <div className="flex items-center justify-between">
-          <Button variant="ghost" size="icon" className="h-12 w-12 rounded-full bg-card shadow-lg" onClick={onBack}>
-            <ArrowLeft className="h-6 w-6" />
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" size="icon" className="h-12 w-12 rounded-full bg-card shadow-lg" onClick={onBack}>
+              <ArrowLeft className="h-6 w-6" />
+            </Button>
+          </div>
           <div className="flex items-center gap-3 bg-card px-4 py-2 rounded-full shadow-lg">
             <div className="h-2 w-2 rounded-full bg-success animate-pulse" />
             <span className="text-sm font-medium">En Service</span>
@@ -174,7 +184,7 @@ export function DriverView({ onBack, onOpenProfile }: DriverViewProps) {
           <button onClick={onOpenProfile}>
             <Avatar className="h-12 w-12 border-2 border-accent shadow-lg cursor-pointer hover:border-accent/70 transition-colors">
               <AvatarImage src="/professional-bus-driver.png" />
-              <AvatarFallback className="bg-primary text-primary-foreground">JD</AvatarFallback>
+              <AvatarFallback className="bg-primary text-primary-foreground">CH</AvatarFallback>
             </Avatar>
           </button>
         </div>
@@ -198,13 +208,14 @@ export function DriverView({ onBack, onOpenProfile }: DriverViewProps) {
           >
             <div className="space-y-4">
               <div className="flex items-center justify-between">
-                <h2 className="text-xl font-bold">Demandeurs en Attente</h2>
-                <Badge className="bg-accent text-accent-foreground">{passengers.length} personnes</Badge>
+                <h2 className="text-xl font-bold">Demandes en Attente</h2>
+                <Badge className="bg-accent text-accent-foreground">{passengers.length}</Badge>
               </div>
 
               {passengers.length === 0 ? (
                 <Card className="p-6 text-center">
                   <p className="text-muted-foreground">Aucune demande en attente pour le moment</p>
+                  <p className="text-xs text-muted-foreground mt-2">Les demandes apparaîtront ici automatiquement</p>
                 </Card>
               ) : (
                 <div className="space-y-3 max-h-[40vh] overflow-y-auto">
@@ -262,11 +273,21 @@ export function DriverView({ onBack, onOpenProfile }: DriverViewProps) {
               )}
               <Button
                 size="lg"
-                className="w-full h-14 bg-accent hover:bg-accent/90 text-accent-foreground shadow-lg"
+                className="w-full h-14 bg-accent hover:bg-accent/90 text-accent-foreground shadow-lg disabled:opacity-50"
                 onClick={handleStartNavigation}
+                disabled={isAccepting}
               >
-                <Navigation className="h-5 w-5 mr-2" />
-                Accepter et Démarrer
+                {isAccepting ? (
+                  <>
+                    <div className="h-5 w-5 border-2 border-current border-t-transparent rounded-full animate-spin mr-2" />
+                    Acceptation...
+                  </>
+                ) : (
+                  <>
+                    <Navigation className="h-5 w-5 mr-2" />
+                    Accepter et Démarrer
+                  </>
+                )}
               </Button>
             </div>
           )}

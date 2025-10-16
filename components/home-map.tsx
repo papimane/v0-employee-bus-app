@@ -8,6 +8,7 @@ import { useState, useEffect } from "react"
 import { useGeolocation } from "@/hooks/use-geolocation"
 import { createClient } from "@/lib/supabase/client"
 import { useToast } from "@/hooks/use-toast"
+import { cancelRideRequest } from "@/app/actions/ride-actions"
 
 interface HomeMapProps {
   onRequestPickup: () => void
@@ -67,6 +68,43 @@ export function HomeMap({ onRequestPickup, onOpenProfile, userProfile }: HomeMap
   const isInGeofence = isPointInPolygon(currentPosition, DAKAR_PORT_GEOFENCE)
 
   useEffect(() => {
+    const loadExistingRequest = async () => {
+      const supabase = createClient()
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+      if (!user) return
+
+      console.log("[v0] Loading existing request for user:", user.id)
+
+      const { data: existingRequest, error } = await supabase
+        .from("ride_requests")
+        .select("id, status, driver_id")
+        .eq("passenger_id", user.id)
+        .in("status", ["pending", "accepted"])
+        .maybeSingle()
+
+      if (error) {
+        console.error("[v0] Error loading existing request:", error)
+        return
+      }
+
+      if (existingRequest) {
+        console.log("[v0] Found existing request:", existingRequest)
+        setCurrentRequestId(existingRequest.id)
+        setRequestPending(true)
+        if (existingRequest.status === "accepted") {
+          setDriverAccepted(true)
+          // Simuler la position du bus (à remplacer par la vraie position du chauffeur)
+          setBusPosition([14.7037, -17.4541])
+        }
+      }
+    }
+
+    loadExistingRequest()
+  }, [])
+
+  useEffect(() => {
     if (!currentRequestId) return
 
     const supabase = createClient()
@@ -110,18 +148,30 @@ export function HomeMap({ onRequestPickup, onOpenProfile, userProfile }: HomeMap
     if (requestPending && currentRequestId) {
       setIsCreatingRequest(true)
       try {
-        const { error } = await supabase
-          .from("ride_requests")
-          .update({ status: "cancelled" })
-          .eq("id", currentRequestId)
+        console.log("[v0] Cancelling request:", currentRequestId)
 
-        if (error) throw error
+        const {
+          data: { user },
+        } = await supabase.auth.getUser()
+        if (!user) throw new Error("User not authenticated")
 
+        const result = await cancelRideRequest(currentRequestId, user.id)
+
+        if (!result.success) {
+          throw new Error(result.error || "Failed to cancel request")
+        }
+
+        console.log("[v0] Request cancelled successfully")
         setRequestPending(false)
         setCurrentRequestId(null)
         setDriverAccepted(false)
         setBusPosition(null)
         setShowToast(false)
+
+        toast({
+          title: "Demande annulée",
+          description: "Votre demande de ramassage a été annulée.",
+        })
       } catch (error) {
         console.error("[v0] Error cancelling request:", error)
         toast({
@@ -140,6 +190,8 @@ export function HomeMap({ onRequestPickup, onOpenProfile, userProfile }: HomeMap
         } = await supabase.auth.getUser()
         if (!user) throw new Error("User not authenticated")
 
+        console.log("[v0] Creating ride request for user:", user.id)
+
         const { data: existingRequests, error: checkError } = await supabase
           .from("ride_requests")
           .select("id, status")
@@ -147,15 +199,22 @@ export function HomeMap({ onRequestPickup, onOpenProfile, userProfile }: HomeMap
           .in("status", ["pending", "accepted"])
           .maybeSingle()
 
-        if (checkError) throw checkError
+        if (checkError) {
+          console.error("[v0] Error checking existing requests:", checkError)
+        }
 
         if (existingRequests) {
+          console.log("[v0] User already has a pending request:", existingRequests)
           toast({
             title: "Demande en cours",
-            description:
-              "Vous avez déjà une demande de ramassage en cours. Veuillez l'annuler avant d'en créer une nouvelle.",
+            description: "Vous avez déjà une demande de ramassage en cours. Veuillez l'annuler d'abord.",
             variant: "destructive",
           })
+          setCurrentRequestId(existingRequests.id)
+          setRequestPending(true)
+          if (existingRequests.status === "accepted") {
+            setDriverAccepted(true)
+          }
           setIsCreatingRequest(false)
           return
         }
@@ -173,12 +232,28 @@ export function HomeMap({ onRequestPickup, onOpenProfile, userProfile }: HomeMap
           .single()
 
         if (error) {
+          console.error("[v0] Error creating request:", error)
           if (error.code === "23505") {
             toast({
               title: "Demande en cours",
               description: "Vous avez déjà une demande de ramassage en cours.",
               variant: "destructive",
             })
+            // Recharger la demande existante
+            const { data: existingRequest } = await supabase
+              .from("ride_requests")
+              .select("id, status")
+              .eq("passenger_id", user.id)
+              .in("status", ["pending", "accepted"])
+              .maybeSingle()
+
+            if (existingRequest) {
+              setCurrentRequestId(existingRequest.id)
+              setRequestPending(true)
+              if (existingRequest.status === "accepted") {
+                setDriverAccepted(true)
+              }
+            }
           } else {
             throw error
           }
@@ -186,7 +261,7 @@ export function HomeMap({ onRequestPickup, onOpenProfile, userProfile }: HomeMap
           return
         }
 
-        console.log("[v0] Ride request created:", data)
+        console.log("[v0] Ride request created successfully:", data)
         setCurrentRequestId(data.id)
         setRequestPending(true)
         setShowToast(true)
@@ -227,7 +302,13 @@ export function HomeMap({ onRequestPickup, onOpenProfile, userProfile }: HomeMap
   return (
     <div className="relative h-full w-full">
       <div className="absolute inset-0 z-0 px-2 md:px-0">
-        <Map center={currentPosition} zoom={13} markers={markers} showGeofence={true} />
+        <Map
+          center={currentPosition}
+          zoom={13}
+          markers={markers}
+          showGeofence={true}
+          route={driverAccepted && busPosition ? [busPosition, currentPosition] : undefined}
+        />
       </div>
 
       {/* Top Bar */}

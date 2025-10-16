@@ -7,9 +7,11 @@ export async function createClient() {
   const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL
   const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
+  console.log("[v0] Creating Supabase client with URL:", supabaseUrl ? "✓" : "✗")
+  console.log("[v0] Creating Supabase client with Key:", supabaseAnonKey ? "✓" : "✗")
+
   if (!supabaseUrl || !supabaseAnonKey) {
-    console.error("[v0] Missing Supabase environment variables")
-    throw new Error("Missing Supabase environment variables")
+    throw new Error("Missing Supabase environment variables: SUPABASE_URL or SUPABASE_ANON_KEY")
   }
 
   return createServerClient(supabaseUrl, supabaseAnonKey, {
@@ -34,9 +36,11 @@ export async function createAdminClient() {
   const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL
   const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
+  console.log("[v0] Creating Admin Supabase client with URL:", supabaseUrl ? "✓" : "✗")
+  console.log("[v0] Creating Admin Supabase client with Service Role Key:", supabaseServiceRoleKey ? "✓" : "✗")
+
   if (!supabaseUrl || !supabaseServiceRoleKey) {
-    console.error("[v0] Missing Supabase admin environment variables")
-    throw new Error("Missing Supabase admin environment variables (SUPABASE_SERVICE_ROLE_KEY)")
+    throw new Error("Missing Supabase environment variables: SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY")
   }
 
   return createServerClient(supabaseUrl, supabaseServiceRoleKey, {
