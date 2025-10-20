@@ -1,4 +1,4 @@
-# Employee bus app
+# Employee Bus App
 
 *Automatically synced with your [v0.app](https://v0.app) deployments*
 
@@ -7,8 +7,40 @@
 
 ## Overview
 
-This repository will stay in sync with your deployed chats on [v0.app](https://v0.app).
-Any changes you make to your deployed app will be automatically pushed to this repository from [v0.app](https://v0.app).
+Application de ramassage par bus d'entreprise avec gestion des demandes de transport, suivi en temps réel et interface d'administration complète.
+
+### Fonctionnalités principales
+
+- **Interface Passager**: Demande de ramassage avec géolocalisation
+- **Interface Chauffeur**: Gestion des demandes et navigation
+- **Interface Admin**: Gestion des chauffeurs, bus et passagers
+- **API REST**: Endpoints documentés avec OpenAPI/Swagger
+- **Authentification**: Système sécurisé avec Supabase Auth
+- **Carte interactive**: Affichage des itinéraires avec OpenStreetMap
+
+## Documentation API
+
+Une API REST complète est disponible avec documentation interactive:
+
+- **Documentation interactive**: [/api-docs](https://buspickup.vercel.app/api-docs)
+- **Spécification OpenAPI**: [/openapi.json](https://buspickup.vercel.app/openapi.json)
+- **Guide détaillé**: Voir [API_README.md](./API_README.md)
+
+### Endpoints principaux
+
+- `GET /api/v1/rides` - Liste des demandes de ramassage
+- `POST /api/v1/rides` - Créer une demande
+- `GET /api/v1/drivers` - Liste des chauffeurs
+- `GET /api/v1/passengers` - Liste des passagers
+
+## Technologies
+
+- **Framework**: Next.js 15 avec App Router
+- **Base de données**: Supabase (PostgreSQL)
+- **Authentification**: Supabase Auth
+- **UI**: React 19, Tailwind CSS, shadcn/ui
+- **Cartes**: Leaflet, OpenStreetMap
+- **API**: REST avec documentation OpenAPI
 
 ## Deployment
 
@@ -28,3 +60,32 @@ Continue building your app on:
 2. Deploy your chats from the v0 interface
 3. Changes are automatically pushed to this repository
 4. Vercel deploys the latest version from this repository
+
+## Structure du projet
+
+\`\`\`
+├── app/
+│   ├── api/v1/          # API REST endpoints
+│   ├── api-docs/        # Documentation Swagger UI
+│   ├── auth/            # Pages d'authentification
+│   ├── admin/           # Interface d'administration
+│   └── actions/         # Server Actions
+├── components/          # Composants React
+├── lib/                 # Utilitaires et configuration
+├── scripts/             # Scripts SQL de migration
+└── public/              # Fichiers statiques
+\`\`\`
+
+## Variables d'environnement
+
+Les variables suivantes sont configurées automatiquement via l'intégration Supabase:
+
+- `SUPABASE_URL`
+- `SUPABASE_ANON_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+
+## Support
+
+Pour toute question ou problème, consultez la documentation API ou contactez l'équipe de développement.

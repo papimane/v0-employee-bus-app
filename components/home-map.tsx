@@ -384,8 +384,10 @@ export function HomeMap({ onRequestPickup, onOpenProfile, userProfile }: HomeMap
       </div>
 
       {showGeofenceError && (
-        <div className="absolute top-44 left-4 right-4 z-20 animate-in slide-in-from-top-5 fade-in duration-300">
-          <Card className="p-4 bg-destructive/90 backdrop-blur-sm border-destructive shadow-lg">
+        <div
+          className={`absolute ${geoError ? "top-56" : "top-40"} left-4 right-4 z-20 animate-in slide-in-from-top-5 fade-in duration-300`}
+        >
+          <Card className="p-4 bg-red-500 backdrop-blur-sm border-red-600 shadow-lg">
             <div className="flex items-center gap-2 text-white">
               <AlertCircle className="h-5 w-5" />
               <p className="font-medium">Vous êtes en dehors de la zone de ramassage</p>
@@ -395,9 +397,11 @@ export function HomeMap({ onRequestPickup, onOpenProfile, userProfile }: HomeMap
       )}
 
       {showToast && (
-        <div className="absolute top-44 left-4 right-4 z-20 animate-in slide-in-from-top-5 fade-in duration-300">
-          <Card className="p-4 bg-success/90 backdrop-blur-sm border-success shadow-lg">
-            <p className="text-white font-medium text-center">Votre demande est prise en compte</p>
+        <div
+          className={`absolute ${geoError ? "top-56" : "top-40"} left-4 right-4 z-20 animate-in slide-in-from-top-5 fade-in duration-300`}
+        >
+          <Card className="p-4 bg-green-500 backdrop-blur-sm border-green-600 shadow-lg">
+            <p className="text-white font-medium text-center">Votre demande de ramassage est bien prise en compte</p>
           </Card>
         </div>
       )}

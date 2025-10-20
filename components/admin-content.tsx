@@ -8,7 +8,7 @@ import { PassengersManagement } from "./passengers-management"
 import { AdminProfilePage } from "./admin-profile-page"
 import { Button } from "./ui/button"
 import { useRouter } from "next/navigation"
-import { ArrowLeft, Users, Bus, UserCircle } from "lucide-react"
+import { ArrowLeft, Users, Bus, UserCircle, BookOpen } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar"
 
 interface AdminContentProps {
@@ -40,24 +40,35 @@ export function AdminContent({ user, profile }: AdminContentProps) {
           </Button>
           <h1 className="text-xl font-bold">Administration</h1>
         </div>
-        <button
-          onClick={() => setShowProfile(true)}
-          className="flex items-center gap-2 hover:opacity-80 transition-opacity"
-        >
-          <Avatar className="h-10 w-10 border-2 border-primary-foreground/20">
-            <AvatarImage src={profile.avatar_url || ""} alt={`${profile.first_name} ${profile.last_name}`} />
-            <AvatarFallback className="bg-[#08AF6C] text-white">
-              {profile.first_name?.[0]?.toUpperCase() || "A"}
-              {profile.last_name?.[0]?.toUpperCase() || "D"}
-            </AvatarFallback>
-          </Avatar>
-          <div className="text-sm text-right hidden md:block">
-            <div className="font-medium">
-              {profile.first_name} {profile.last_name}
+        <div className="flex items-center gap-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => router.push("/api-docs")}
+            className="text-primary-foreground hover:bg-primary-foreground/10 hidden md:flex items-center gap-2"
+          >
+            <BookOpen className="h-4 w-4" />
+            Documentation API
+          </Button>
+          <button
+            onClick={() => setShowProfile(true)}
+            className="flex items-center gap-2 hover:opacity-80 transition-opacity"
+          >
+            <Avatar className="h-10 w-10 border-2 border-primary-foreground/20">
+              <AvatarImage src={profile.avatar_url || ""} alt={`${profile.first_name} ${profile.last_name}`} />
+              <AvatarFallback className="bg-[#08AF6C] text-white">
+                {profile.first_name?.[0]?.toUpperCase() || "A"}
+                {profile.last_name?.[0]?.toUpperCase() || "D"}
+              </AvatarFallback>
+            </Avatar>
+            <div className="text-sm text-right hidden md:block">
+              <div className="font-medium">
+                {profile.first_name} {profile.last_name}
+              </div>
+              <div className="text-xs opacity-75">Administrateur</div>
             </div>
-            <div className="text-xs opacity-75">Administrateur</div>
-          </div>
-        </button>
+          </button>
+        </div>
       </div>
 
       {/* Tabs */}
