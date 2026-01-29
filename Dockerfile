@@ -23,6 +23,17 @@ COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
 
+# Variables d'environnement Supabase (valeurs placeholder pour le build)
+# Ces valeurs seront remplacées au runtime par les vraies variables
+ARG NEXT_PUBLIC_SUPABASE_URL=https://placeholder.supabase.co
+ARG NEXT_PUBLIC_SUPABASE_ANON_KEY=placeholder_anon_key
+ARG SUPABASE_URL=https://placeholder.supabase.co
+ARG SUPABASE_ANON_KEY=placeholder_anon_key
+ENV NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL
+ENV NEXT_PUBLIC_SUPABASE_ANON_KEY=$NEXT_PUBLIC_SUPABASE_ANON_KEY
+ENV SUPABASE_URL=$SUPABASE_URL
+ENV SUPABASE_ANON_KEY=$SUPABASE_ANON_KEY
+
 # Build de l'application
 RUN corepack enable pnpm && pnpm run build
 

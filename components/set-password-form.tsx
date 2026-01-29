@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "./ui/button"
 import { Input } from "./ui/input"
@@ -16,8 +16,12 @@ export function SetPasswordForm() {
   const [confirmPassword, setConfirmPassword] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [supabase, setSupabase] = useState<ReturnType<typeof createClient> | null>(null)
   const router = useRouter()
-  const supabase = createClient()
+
+  useEffect(() => {
+    setSupabase(createClient())
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -37,6 +41,9 @@ export function SetPasswordForm() {
     }
 
     try {
+      if (!supabase) {
+        throw new Error("Client Supabase non disponible")
+      }
       const { error } = await supabase.auth.updateUser({
         password: password,
       })

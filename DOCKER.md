@@ -13,14 +13,14 @@ Ce guide explique comment exécuter l'application BusPickup avec Docker.
 
 Créez un fichier `.env` à la racine du projet :
 
-```bash
+\`\`\`bash
 cp .env.example .env
-```
+\`\`\`
 
 Modifiez les valeurs selon vos besoins :
 
-```env
-# Base de données
+\`\`\`env
+# Base de données PostgreSQL locale
 POSTGRES_USER=buspickup
 POSTGRES_PASSWORD=votre_mot_de_passe_securise
 POSTGRES_DB=buspickup
@@ -28,6 +28,15 @@ POSTGRES_DB=buspickup
 # Application
 JWT_SECRET=votre_secret_jwt_super_securise_minimum_32_caracteres
 NEXT_PUBLIC_APP_URL=http://localhost:3000
+
+# Supabase (requis pour l'authentification)
+# Obtenir ces valeurs depuis le dashboard Supabase
+# https://supabase.com/dashboard/project/_/settings/api
+NEXT_PUBLIC_SUPABASE_URL=https://votre-projet.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=votre_cle_anon
+SUPABASE_URL=https://votre-projet.supabase.co
+SUPABASE_ANON_KEY=votre_cle_anon
+SUPABASE_SERVICE_ROLE_KEY=votre_cle_service_role
 
 # Email (optionnel)
 SMTP_HOST=smtp.example.com
@@ -39,13 +48,13 @@ SMTP_FROM=noreply@buspickup.com
 # pgAdmin (optionnel)
 PGADMIN_EMAIL=admin@buspickup.com
 PGADMIN_PASSWORD=admin
-```
+\`\`\`
 
 ### 2. Lancer l'application
 
 **Mode Production (complet) :**
 
-```bash
+\`\`\`bash
 # Construire et démarrer tous les services
 docker-compose up -d --build
 
@@ -54,13 +63,13 @@ docker-compose logs -f
 
 # Arrêter les services
 docker-compose down
-```
+\`\`\`
 
 **Avec pgAdmin (interface d'administration BDD) :**
 
-```bash
+\`\`\`bash
 docker-compose --profile admin up -d --build
-```
+\`\`\`
 
 L'application sera accessible sur :
 - **Application** : http://localhost:3000
@@ -70,20 +79,20 @@ L'application sera accessible sur :
 
 Pour le développement, utilisez uniquement PostgreSQL et pgAdmin en Docker, et lancez l'application en local :
 
-```bash
+\`\`\`bash
 # Démarrer PostgreSQL et pgAdmin
 docker-compose -f docker-compose.dev.yml up -d
 
 # Dans un autre terminal, lancer l'application Next.js
 pnpm install
 pnpm dev
-```
+\`\`\`
 
 ## Commandes utiles
 
 ### Gestion des conteneurs
 
-```bash
+\`\`\`bash
 # Voir l'état des conteneurs
 docker-compose ps
 
@@ -97,11 +106,11 @@ docker-compose logs -f postgres
 # Accéder au shell d'un conteneur
 docker-compose exec app sh
 docker-compose exec postgres psql -U buspickup -d buspickup
-```
+\`\`\`
 
 ### Base de données
 
-```bash
+\`\`\`bash
 # Exécuter les migrations manuellement
 docker-compose exec postgres psql -U buspickup -d buspickup -f /docker-entrypoint-initdb.d/01-schema.sql
 
@@ -114,11 +123,11 @@ docker-compose exec -T postgres psql -U buspickup buspickup < backup.sql
 # Réinitialiser la base de données (supprime toutes les données)
 docker-compose down -v
 docker-compose up -d
-```
+\`\`\`
 
 ### Nettoyage
 
-```bash
+\`\`\`bash
 # Arrêter et supprimer les conteneurs
 docker-compose down
 
@@ -127,11 +136,11 @@ docker-compose down -v
 
 # Supprimer les images non utilisées
 docker system prune -a
-```
+\`\`\`
 
 ## Architecture Docker
 
-```
+\`\`\`
 ┌─────────────────────────────────────────────────────────┐
 │                    Docker Network                        │
 │                  (buspickup-network)                     │
@@ -145,7 +154,7 @@ docker system prune -a
 │  └─────────────┘    └─────────────┘    └─────────────┘  │
 │                                                          │
 └─────────────────────────────────────────────────────────┘
-```
+\`\`\`
 
 ## Variables d'environnement
 
@@ -179,33 +188,33 @@ Après le premier démarrage, les comptes suivants sont disponibles :
 ### L'application ne démarre pas
 
 1. Vérifiez que PostgreSQL est prêt :
-```bash
+\`\`\`bash
 docker-compose logs postgres
-```
+\`\`\`
 
 2. Vérifiez les logs de l'application :
-```bash
+\`\`\`bash
 docker-compose logs app
-```
+\`\`\`
 
 ### Erreur de connexion à la base de données
 
 1. Assurez-vous que le conteneur PostgreSQL est en cours d'exécution :
-```bash
+\`\`\`bash
 docker-compose ps
-```
+\`\`\`
 
 2. Vérifiez la connectivité :
-```bash
+\`\`\`bash
 docker-compose exec app ping postgres
-```
+\`\`\`
 
 ### Réinitialiser complètement
 
-```bash
+\`\`\`bash
 docker-compose down -v --rmi all
 docker-compose up -d --build
-```
+\`\`\`
 
 ## Production
 
@@ -219,11 +228,11 @@ Pour un déploiement en production, pensez à :
 
 Exemple de configuration avec Traefik :
 
-```yaml
+\`\`\`yaml
 services:
   app:
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.buspickup.rule=Host(`buspickup.example.com`)"
       - "traefik.http.routers.buspickup.tls.certresolver=letsencrypt"
-```
+\`\`\`
