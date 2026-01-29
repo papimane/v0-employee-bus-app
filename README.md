@@ -1,164 +1,128 @@
 # Employee Bus App
 
-Application de gestion des employés et des arrêts de bus utilisant Next.js 16 et PostgreSQL.
+*Automatically synced with your [v0.app](https://v0.app) deployments*
 
-## ⚠️ Important : Limitation de l'environnement v0
+[![Deployed on Vercel](https://img.shields.io/badge/Deployed%20on-Vercel-black?style=for-the-badge&logo=vercel)](https://vercel.com/souleymanes-projects-77fd2120/v0-employee-bus-app)
+[![Built with v0](https://img.shields.io/badge/Built%20with-v0.app-black?style=for-the-badge)](https://v0.app/chat/projects/mXxLJ1DBMiB)
 
-**Ce projet utilise le driver PostgreSQL natif (`pg`) qui ne fonctionne PAS dans l'environnement de prévisualisation v0.**
+## Overview
 
-L'erreur `module "/build/addon.node" not found` indique que les binaires natifs Node.js requis par le driver `pg` ne sont pas disponibles dans le navigateur.
+Application de ramassage par bus d'entreprise avec gestion des demandes de transport, suivi en temps réel et interface d'administration complète.
 
-### Solutions possibles :
+### Fonctionnalités principales
 
-1. **Développer en local** (recommandé pour PostgreSQL local)
-   - Clonez le repo et suivez les instructions ci-dessous
-   - Lancez le projet sur votre machine avec `npm run dev`
-   
-2. **Utiliser l'intégration Supabase dans v0**
-   - Supabase fonctionne parfaitement dans v0
-   - Allez dans Connect > Supabase dans la barre latérale
-   - Je peux adapter le code pour utiliser Supabase si vous préférez
+- **Interface Passager**: Demande de ramassage avec géolocalisation
+- **Interface Chauffeur**: Gestion des demandes et navigation
+- **Interface Admin**: Gestion des chauffeurs, bus et passagers
+- **API REST**: Endpoints documentés avec OpenAPI/Swagger
+- **Authentification**: Système sécurisé avec Supabase Auth
+- **Carte interactive**: Affichage des itinéraires avec OpenStreetMap
 
-## Prérequis
+## Documentation API
 
-- Node.js 18+ installé
-- PostgreSQL installé et en cours d'exécution localement
-- Une base de données PostgreSQL créée
+Une API REST complète est disponible avec documentation interactive:
+
+- **Documentation interactive**: [/api-docs](https://buspickup.vercel.app/api-docs)
+- **Spécification OpenAPI**: [/openapi.json](https://buspickup.vercel.app/openapi.json)
+- **Guide détaillé**: Voir [API_README.md](./API_README.md)
+
+### Endpoints principaux
+
+- `GET /api/v1/rides` - Liste des demandes de ramassage
+- `POST /api/v1/rides` - Créer une demande
+- `GET /api/v1/drivers` - Liste des chauffeurs
+- `GET /api/v1/passengers` - Liste des passagers
+
+## Technologies
+
+- **Framework**: Next.js 15 avec App Router
+- **Base de données**: PostgreSQL
+- **Authentification**: Custom Auth avec JWT
+- **UI**: React 19, Tailwind CSS, shadcn/ui
+- **Cartes**: Leaflet, OpenStreetMap
+- **API**: REST avec documentation OpenAPI
+- **Conteneurisation**: Docker & Docker Compose
 
 ## Installation
 
-**Note :** Ces instructions sont pour lancer le projet **en local sur votre machine**. Le projet ne peut pas s'exécuter dans l'environnement de prévisualisation v0.
+### Option 1: Docker (recommandé)
 
-1. Clonez le repository :
-\`\`\`bash
-git clone <votre-repo-url>
-cd employee-bus-app
-\`\`\`
+```bash
+# Cloner le projet
+git clone <repo-url>
+cd buspickup
 
-2. Installez les dépendances :
-\`\`\`bash
-npm install
-\`\`\`
+# Configurer l'environnement
+cp .env.example .env
 
-3. Configurez les variables d'environnement :
+# Lancer avec Docker
+docker-compose up -d --build
+```
 
-Créez un fichier `.env.local` à la racine du projet avec les variables suivantes :
+L'application sera accessible sur http://localhost:3000
 
-\`\`\`env
-# PostgreSQL Configuration
-POSTGRES_URL="postgresql://username:password@localhost:5432/database_name"
-POSTGRES_HOST="localhost"
-POSTGRES_USER="username"
-POSTGRES_PASSWORD="password"
-POSTGRES_DATABASE="database_name"
+Voir [DOCKER.md](./DOCKER.md) pour plus de détails.
 
-# Optional: For connection pooling
-POSTGRES_URL_NON_POOLING="postgresql://username:password@localhost:5432/database_name"
-POSTGRES_PRISMA_URL="postgresql://username:password@localhost:5432/database_name"
-\`\`\`
+### Option 2: Installation manuelle
 
-**Important :** Remplacez `username`, `password`, et `database_name` par vos propres valeurs PostgreSQL.
+```bash
+# Installer les dépendances
+pnpm install
 
-### Exemple de configuration locale
+# Configurer la base de données
+psql -U postgres -f database/schema.sql
+psql -U postgres -f database/seed.sql
 
-Si vous avez créé une base de données appelée `employee_bus` avec l'utilisateur `postgres` et le mot de passe `postgres`, votre `.env.local` ressemblera à :
+# Lancer en développement
+pnpm dev
+```
 
-\`\`\`env
-POSTGRES_URL="postgresql://postgres:postgres@localhost:5432/employee_bus"
-POSTGRES_HOST="localhost"
-POSTGRES_USER="postgres"
-POSTGRES_PASSWORD="postgres"
-POSTGRES_DATABASE="employee_bus"
-\`\`\`
+Voir [INSTALL.md](./INSTALL.md) pour les instructions détaillées.
 
-## Initialisation de la base de données
+## Deployment
 
-Le projet inclut des scripts SQL dans le dossier `/scripts` pour créer et remplir la base de données.
+Your project is live at:
 
-Exécutez les scripts dans l'ordre :
+**[https://vercel.com/souleymanes-projects-77fd2120/v0-employee-bus-app](https://vercel.com/souleymanes-projects-77fd2120/v0-employee-bus-app)**
 
-\`\`\`bash
-# Connectez-vous à votre base PostgreSQL
-psql -U postgres -d employee_bus
+## Build your app
 
-# Puis exécutez les scripts
-\i scripts/001_create_employees_table.sql
-\i scripts/002_seed_initial_data.sql
-\`\`\`
+Continue building your app on:
 
-Ou en une seule commande :
+**[https://v0.app/chat/projects/mXxLJ1DBMiB](https://v0.app/chat/projects/mXxLJ1DBMiB)**
 
-\`\`\`bash
-psql -U postgres -d employee_bus -f scripts/001_create_employees_table.sql
-psql -U postgres -d employee_bus -f scripts/002_seed_initial_data.sql
-\`\`\`
+## How It Works
 
-## Lancement du projet
-
-**Important :** Ces commandes doivent être exécutées sur votre machine locale, pas dans v0.
-
-### Mode développement
-
-\`\`\`bash
-npm run dev
-\`\`\`
-
-L'application sera accessible sur [http://localhost:3000](http://localhost:3000)
-
-### Mode production
-
-\`\`\`bash
-npm run build
-npm run start
-\`\`\`
+1. Create and modify your project using [v0.app](https://v0.app)
+2. Deploy your chats from the v0 interface
+3. Changes are automatically pushed to this repository
+4. Vercel deploys the latest version from this repository
 
 ## Structure du projet
 
 \`\`\`
-employee-bus-app/
-├── app/              # Pages et routes Next.js (App Router)
-├── components/       # Composants React réutilisables
-├── lib/             # Utilitaires et configuration (db.ts pour PostgreSQL)
-├── scripts/         # Scripts SQL pour la base de données
-└── hooks/           # React hooks personnalisés
+├── app/
+│   ├── api/v1/          # API REST endpoints
+│   ├── api-docs/        # Documentation Swagger UI
+│   ├── auth/            # Pages d'authentification
+│   ├── admin/           # Interface d'administration
+│   └── actions/         # Server Actions
+├── components/          # Composants React
+├── lib/                 # Utilitaires et configuration
+├── scripts/             # Scripts SQL de migration
+└── public/              # Fichiers statiques
 \`\`\`
 
-## Technologies utilisées
+## Variables d'environnement
 
-- **Next.js 16** - Framework React avec App Router
-- **React 19** - Bibliothèque UI
-- **PostgreSQL** - Base de données
-- **pg** - Driver PostgreSQL pour Node.js
-- **Tailwind CSS 4** - Framework CSS
-- **shadcn/ui** - Composants UI
-- **TypeScript** - Typage statique
+Les variables suivantes sont configurées automatiquement via l'intégration Supabase:
 
-## Dépannage
-
-### Erreur de connexion PostgreSQL
-
-Si vous obtenez une erreur de connexion, vérifiez que :
-- PostgreSQL est bien démarré : `pg_ctl status` ou `sudo service postgresql status`
-- Les credentials dans `.env.local` sont corrects
-- La base de données existe : `psql -U postgres -l`
-
-### Erreur "module /build/addon.node not found" dans v0
-
-Cette erreur est normale dans l'environnement v0. Pour utiliser ce projet :
-- Clonez le repo sur votre machine locale
-- Suivez les instructions d'installation ci-dessus
-- Lancez `npm run dev` en local
-
-Alternativement, utilisez l'intégration Supabase disponible dans v0.
-
-### Créer une nouvelle base de données
-
-\`\`\`bash
-psql -U postgres
-CREATE DATABASE employee_bus;
-\q
-\`\`\`
+- `SUPABASE_URL`
+- `SUPABASE_ANON_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 
 ## Support
 
-Pour toute question ou problème, ouvrez une issue sur le repository.
+Pour toute question ou problème, consultez la documentation API ou contactez l'équipe de développement.
