@@ -1,7 +1,6 @@
 "use client"
 
 import { useState } from "react"
-import type { User } from "@supabase/supabase-js"
 import { DriversManagement } from "./drivers-management"
 import { BusesManagement } from "./buses-management"
 import { PassengersManagement } from "./passengers-management"
@@ -11,18 +10,27 @@ import { useRouter } from "next/navigation"
 import { ArrowLeft, Users, Bus, UserCircle, BookOpen } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar"
 
-interface AdminContentProps {
-  user: User
-  profile: any
+interface UserData {
+  id: string
+  email: string
+  role: string
+  first_name: string | null
+  last_name: string | null
+  phone: string | null
+  avatar_url: string | null
 }
 
-export function AdminContent({ user, profile }: AdminContentProps) {
+interface AdminContentProps {
+  user: UserData
+}
+
+export function AdminContent({ user }: AdminContentProps) {
   const [activeTab, setActiveTab] = useState<"drivers" | "buses" | "passengers">("drivers")
   const [showProfile, setShowProfile] = useState(false)
   const router = useRouter()
 
   if (showProfile) {
-    return <AdminProfilePage user={user} profile={profile} onBack={() => setShowProfile(false)} />
+    return <AdminProfilePage user={user} onBack={() => setShowProfile(false)} />
   }
 
   return (
@@ -55,15 +63,15 @@ export function AdminContent({ user, profile }: AdminContentProps) {
             className="flex items-center gap-2 hover:opacity-80 transition-opacity"
           >
             <Avatar className="h-10 w-10 border-2 border-primary-foreground/20">
-              <AvatarImage src={profile.avatar_url || ""} alt={`${profile.first_name} ${profile.last_name}`} />
+              <AvatarImage src={user.avatar_url || ""} alt={`${user.first_name} ${user.last_name}`} />
               <AvatarFallback className="bg-[#08AF6C] text-white">
-                {profile.first_name?.[0]?.toUpperCase() || "A"}
-                {profile.last_name?.[0]?.toUpperCase() || "D"}
+                {user.first_name?.[0]?.toUpperCase() || "A"}
+                {user.last_name?.[0]?.toUpperCase() || "D"}
               </AvatarFallback>
             </Avatar>
             <div className="text-sm text-right hidden md:block">
               <div className="font-medium">
-                {profile.first_name} {profile.last_name}
+                {user.first_name} {user.last_name}
               </div>
               <div className="text-xs opacity-75">Administrateur</div>
             </div>

@@ -1,15 +1,18 @@
-import { createClient } from "@/lib/supabase/server"
+import { getCurrentUser } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import LoginForm from "@/components/login-form"
 
+export const dynamic = "force-dynamic"
+
 export default async function LoginPage() {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const user = await getCurrentUser()
 
   if (user) {
-    redirect("/")
+    if (user.role === "admin") {
+      redirect("/admin")
+    } else {
+      redirect("/")
+    }
   }
 
   return <LoginForm />

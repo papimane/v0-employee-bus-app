@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server"
+import { query } from "@/lib/db"
 import { type NextRequest, NextResponse } from "next/server"
 
 /**
@@ -13,20 +13,16 @@ import { type NextRequest, NextResponse } from "next/server"
  */
 export async function GET(request: NextRequest) {
   try {
-    const supabase = await createClient()
+    const result = await query(
+      `SELECT id, email, full_name, phone, avatar_url, role, created_at 
+       FROM users 
+       WHERE role = 'passenger' 
+       ORDER BY created_at DESC`
+    )
 
-    const { data, error } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("role", "passenger")
-      .order("created_at", { ascending: false })
-
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 400 })
-    }
-
-    return NextResponse.json({ data, count: data?.length || 0 })
+    return NextResponse.json({ data: result.rows, count: result.rows.length })
   } catch (error) {
+    console.error("Error fetching passengers:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }

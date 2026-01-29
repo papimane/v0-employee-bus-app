@@ -1,14 +1,17 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { MapPin, Navigation, Phone, User, Clock, ArrowLeft } from "lucide-react"
 import { Map } from "./map"
-import { createClient } from "@/lib/supabase/client"
-import { acceptRideRequest } from "@/app/actions/ride-actions"
+import {
+  getPendingRideRequests,
+  acceptRideRequest,
+  type RideRequestWithPassenger,
+} from "@/app/actions/ride-actions"
 
 interface Passenger {
   id: string
@@ -23,9 +26,10 @@ interface Passenger {
 interface DriverViewProps {
   onBack: () => void
   onOpenProfile: () => void
+  userId: string
 }
 
-export function DriverView({ onBack, onOpenProfile }: DriverViewProps) {
+export function DriverView({ onBack, onOpenProfile, userId }: DriverViewProps) {
   const driverPosition: [number, number] = [14.68, -17.45]
 
   const [passengers, setPassengers] = useState<Passenger[]>([])
@@ -33,82 +37,38 @@ export function DriverView({ onBack, onOpenProfile }: DriverViewProps) {
   const [isSheetCollapsed, setIsSheetCollapsed] = useState(false)
   const [isAccepting, setIsAccepting] = useState(false)
 
-  useEffect(() => {
-    const supabase = createClient()
+  const loadPendingRequests = useCallback(async () => {
+    try {
+      const requests = await getPendingRideRequests()
 
-    const loadPendingRequests = async () => {
-      try {
-        console.log("[v0] Loading pending requests...")
-        const { data: requests, error } = await supabase
-          .from("ride_requests")
-          .select(
-            `
-            id,
-            pickup_latitude,
-            pickup_longitude,
-            pickup_address,
-            created_at,
-            passenger_id,
-            profiles:passenger_id (
-              first_name,
-              last_name,
-              avatar_url
-            )
-          `,
-          )
-          .eq("status", "pending")
-          .order("created_at", { ascending: true })
-
-        if (error) {
-          console.error("[v0] Error loading requests:", error)
-          throw error
-        }
-
-        console.log("[v0] Loaded pending requests:", requests)
-
-        const formattedPassengers: Passenger[] = requests.map((req: any) => {
-          const profile = req.profiles
+      const formattedPassengers: Passenger[] = requests
+        .filter((req) => req.status === "pending")
+        .map((req: RideRequestWithPassenger) => {
           const waitTime = Math.floor((Date.now() - new Date(req.created_at).getTime()) / 60000)
 
           return {
             id: req.passenger_id,
             requestId: req.id,
-            name: `${profile?.first_name || ""} ${profile?.last_name || ""}`.trim() || "Passager",
-            position: [req.pickup_latitude, req.pickup_longitude] as [number, number],
+            name: req.passenger?.full_name || "Passager",
+            position: [req.pickup_lat, req.pickup_lng] as [number, number],
             address: req.pickup_address || "Adresse inconnue",
             waitTime: waitTime,
-            avatar: profile?.avatar_url || "/professional-employee.png",
+            avatar: req.passenger?.avatar_url || "/professional-employee.png",
           }
         })
 
-        setPassengers(formattedPassengers)
-      } catch (error) {
-        console.error("[v0] Error loading requests:", error)
-      }
-    }
-
-    loadPendingRequests()
-
-    const channel = supabase
-      .channel("ride_requests_changes")
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "ride_requests",
-        },
-        (payload) => {
-          console.log("[v0] Ride requests changed:", payload)
-          loadPendingRequests()
-        },
-      )
-      .subscribe()
-
-    return () => {
-      supabase.removeChannel(channel)
+      setPassengers(formattedPassengers)
+    } catch (error) {
+      console.error("Error loading requests:", error)
     }
   }, [])
+
+  useEffect(() => {
+    loadPendingRequests()
+    // Polling toutes les 5 secondes pour simuler le temps réel
+    const interval = setInterval(loadPendingRequests, 5000)
+    return () => clearInterval(interval)
+  }, [loadPendingRequests])
 
   const route = selectedPassenger ? [driverPosition, selectedPassenger.position] : undefined
 
@@ -134,29 +94,21 @@ export function DriverView({ onBack, onOpenProfile }: DriverViewProps) {
     if (!selectedPassenger || isAccepting) return
 
     setIsAccepting(true)
-    const supabase = createClient()
 
     try {
-      console.log("[v0] Accepting request:", selectedPassenger.requestId)
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
-      if (!user) throw new Error("User not authenticated")
-
-      const result = await acceptRideRequest(selectedPassenger.requestId, user.id)
+      const result = await acceptRideRequest(selectedPassenger.requestId, userId)
 
       if (!result.success) {
         throw new Error(result.error || "Failed to accept request")
       }
 
-      console.log("[v0] Request accepted successfully:", selectedPassenger.requestId)
-
       const url = `https://www.google.com/maps/dir/?api=1&origin=${driverPosition[0]},${driverPosition[1]}&destination=${selectedPassenger.position[0]},${selectedPassenger.position[1]}`
       window.open(url, "_blank")
 
       setSelectedPassenger(null)
+      await loadPendingRequests()
     } catch (error) {
-      console.error("[v0] Error accepting request:", error)
+      console.error("Error accepting request:", error)
       alert("Erreur lors de l'acceptation de la demande. Veuillez réessayer.")
     } finally {
       setIsAccepting(false)
@@ -266,7 +218,7 @@ export function DriverView({ onBack, onOpenProfile }: DriverViewProps) {
                     <User className="h-5 w-5 text-accent" />
                   </div>
                   <div className="flex-1">
-                    <p className="text-sm text-muted-foreground">Passager Sélectionné</p>
+                    <p className="text-sm text-muted-foreground">Passager Selectionne</p>
                     <p className="font-semibold">{selectedPassenger.name}</p>
                   </div>
                 </div>
@@ -285,7 +237,7 @@ export function DriverView({ onBack, onOpenProfile }: DriverViewProps) {
                 ) : (
                   <>
                     <Navigation className="h-5 w-5 mr-2" />
-                    Accepter et Démarrer
+                    Accepter et Demarrer
                   </>
                 )}
               </Button>

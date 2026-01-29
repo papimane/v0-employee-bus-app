@@ -1,10 +1,27 @@
 import { redirect } from "next/navigation"
-import { createClient } from "@/lib/supabase/server"
+import { cookies } from "next/headers"
+import { query } from "@/lib/db"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { createActiveDriver } from "@/app/actions/driver-actions"
 
 export const dynamic = "force-dynamic"
+
+async function getUser() {
+  const cookieStore = await cookies()
+  const sessionToken = cookieStore.get("session_token")?.value
+  
+  if (!sessionToken) return null
+  
+  const result = await query(
+    `SELECT u.* FROM users u
+     JOIN sessions s ON u.id = s.user_id
+     WHERE s.token = $1 AND s.expires_at > NOW()`,
+    [sessionToken]
+  )
+  
+  return result.rows[0] || null
+}
 
 async function createTestDriver() {
   "use server"
@@ -22,19 +39,14 @@ async function createTestDriver() {
 }
 
 export default async function CreateTestDriverPage() {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const user = await getUser()
 
   if (!user) {
     redirect("/auth/login")
   }
 
-  // Vérifier le rôle admin
-  const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single()
-
-  if (profile?.role !== "admin") {
+  // Verifier le role admin
+  if (user.role !== "admin") {
     redirect("/")
   }
 
@@ -43,8 +55,8 @@ export default async function CreateTestDriverPage() {
       <div className="mx-auto max-w-2xl">
         <Card>
           <CardHeader>
-            <CardTitle>Créer un Chauffeur de Test</CardTitle>
-            <CardDescription>Créer un compte chauffeur actif pour les tests</CardDescription>
+            <CardTitle>Creer un Chauffeur de Test</CardTitle>
+            <CardDescription>Creer un compte chauffeur actif pour les tests</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="rounded-lg bg-muted p-4 space-y-2">
@@ -59,7 +71,7 @@ export default async function CreateTestDriverPage() {
                 <span className="font-medium">Nom :</span> Jean Dupont
               </p>
               <p className="text-sm">
-                <span className="font-medium">Téléphone :</span> +221771234567
+                <span className="font-medium">Telephone :</span> +221771234567
               </p>
               <p className="text-sm">
                 <span className="font-medium">Permis :</span> DL987654321
@@ -76,11 +88,11 @@ export default async function CreateTestDriverPage() {
               }}
             >
               <Button type="submit" className="w-full">
-                Créer le Chauffeur
+                Creer le Chauffeur
               </Button>
             </form>
 
-            <p className="text-sm text-muted-foreground">Note : Cette page doit être supprimée en production</p>
+            <p className="text-sm text-muted-foreground">Note : Cette page doit etre supprimee en production</p>
           </CardContent>
         </Card>
       </div>

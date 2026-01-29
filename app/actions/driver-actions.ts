@@ -1,79 +1,98 @@
 "use server"
 
-import { createAdminClient } from "@/lib/supabase/server"
+import { query, driverRepository, userRepository } from "@/lib/db"
+import { hashPassword, createPasswordResetToken } from "@/lib/auth"
+import { v4 as uuidv4 } from "uuid"
 
 function getAppUrl() {
   if (process.env.NEXT_PUBLIC_APP_URL) {
     return process.env.NEXT_PUBLIC_APP_URL
   }
-  // En production/preview sur Vercel, utiliser VERCEL_URL
   if (process.env.VERCEL_URL) {
     return `https://${process.env.VERCEL_URL}`
   }
-  // En développement local
   return "http://localhost:3000"
 }
 
 export async function inviteDriver(email: string, firstName: string, lastName: string, phone: string) {
-  const supabase = await createAdminClient()
-
-  const redirectUrl = `${getAppUrl()}/auth/set-password`
-
   try {
-    // Utiliser l'API Admin pour inviter l'utilisateur
-    const { data: authData, error: authError } = await supabase.auth.admin.inviteUserByEmail(email, {
-      data: {
-        first_name: firstName,
-        last_name: lastName,
-        phone: phone,
-      },
-      redirectTo: redirectUrl,
+    // Vérifier si l'utilisateur existe déjà
+    const existingUser = await userRepository.findByEmail(email)
+    if (existingUser) {
+      return { success: false, error: "Cet email est déjà utilisé" }
+    }
+
+    // Créer l'utilisateur avec un mot de passe temporaire
+    const tempPassword = uuidv4()
+    const passwordHash = await hashPassword(tempPassword)
+
+    const user = await userRepository.create({
+      email,
+      password_hash: passwordHash,
+      first_name: firstName,
+      last_name: lastName,
+      phone,
+      role: "driver",
     })
 
-    if (authError) throw authError
+    // Créer le chauffeur
+    await driverRepository.create({
+      user_id: user.id,
+      first_name: firstName,
+      last_name: lastName,
+      email,
+      phone,
+      license_number: "",
+    })
 
-    return { success: true, userId: authData.user.id }
+    // Créer un token de réinitialisation pour définir le mot de passe
+    const token = await createPasswordResetToken(email)
+    
+    const redirectUrl = `${getAppUrl()}/auth/set-password?token=${token}`
+    console.log("[Driver] Invitation link:", redirectUrl)
+
+    // TODO: Envoyer l'email d'invitation avec le lien
+
+    return { success: true, userId: user.id }
   } catch (error) {
-    console.error("Error inviting driver:", error)
+    console.error("[Driver] Error inviting driver:", error)
     return { success: false, error: error instanceof Error ? error.message : "Erreur inconnue" }
   }
 }
 
 export async function resendDriverInvitation(email: string) {
-  const supabase = await createAdminClient()
-
-  const redirectUrl = `${getAppUrl()}/auth/set-password`
-
   try {
-    // Renvoyer l'invitation
-    const { error } = await supabase.auth.admin.inviteUserByEmail(email, {
-      redirectTo: redirectUrl,
-    })
+    const token = await createPasswordResetToken(email)
+    if (!token) {
+      return { success: false, error: "Utilisateur non trouvé" }
+    }
 
-    if (error) throw error
+    const redirectUrl = `${getAppUrl()}/auth/set-password?token=${token}`
+    console.log("[Driver] Resend invitation link:", redirectUrl)
+
+    // TODO: Envoyer l'email d'invitation avec le lien
 
     return { success: true }
   } catch (error) {
-    console.error("Error resending invitation:", error)
+    console.error("[Driver] Error resending invitation:", error)
     return { success: false, error: error instanceof Error ? error.message : "Erreur inconnue" }
   }
 }
 
 export async function checkDriverActivation(userId: string) {
-  const supabase = await createAdminClient()
-
   try {
-    const { data, error } = await supabase.auth.admin.getUserById(userId)
-
-    if (error) throw error
+    const user = await userRepository.findById(userId)
+    if (!user) {
+      return { success: false, error: "Utilisateur non trouvé" }
+    }
 
     return {
       success: true,
-      isActivated: !!data.user.email_confirmed_at,
-      emailConfirmedAt: data.user.email_confirmed_at,
+      isActivated: user.email_verified,
+      emailConfirmedAt: user.email_verified ? user.updated_at : null,
     }
   } catch (error) {
-    console.error("Error checking activation:", error)
+    console.error("[Driver] Error checking activation:", error)
     return { success: false, error: error instanceof Error ? error.message : "Erreur inconnue" }
   }
 }
@@ -86,75 +105,81 @@ export async function createActiveDriver(
   phone: string,
   licenseNumber: string,
 ) {
-  const supabase = await createAdminClient()
-
   try {
-    const { data: existingUsers } = await supabase.auth.admin.listUsers()
-    const existingUser = existingUsers?.users.find((u) => u.email === email)
-
+    // Vérifier si l'utilisateur existe déjà
+    const existingUser = await userRepository.findByEmail(email)
     if (existingUser) {
-      console.log("[v0] Deleting existing user:", existingUser.id)
-      // Supprimer d'abord les données liées
-      await supabase.from("drivers").delete().eq("user_id", existingUser.id)
-      await supabase.from("profiles").delete().eq("id", existingUser.id)
-      await supabase.auth.admin.deleteUser(existingUser.id)
-      // Attendre un peu pour que la suppression soit complète
-      await new Promise((resolve) => setTimeout(resolve, 1000))
+      // Supprimer l'utilisateur existant et ses données liées
+      await query("DELETE FROM drivers WHERE user_id = $1", [existingUser.id])
+      await query("DELETE FROM sessions WHERE user_id = $1", [existingUser.id])
+      await userRepository.delete(existingUser.id)
     }
 
-    const { data: authData, error: authError } = await supabase.auth.admin.createUser({
+    // Créer l'utilisateur
+    const passwordHash = await hashPassword(password)
+    const user = await userRepository.create({
       email,
-      password,
-      email_confirm: true,
-      user_metadata: {
-        first_name: firstName,
-        last_name: lastName,
-        phone: phone,
-        role: "driver",
-      },
+      password_hash: passwordHash,
+      first_name: firstName,
+      last_name: lastName,
+      phone,
+      role: "driver",
     })
 
-    if (authError) throw authError
-    console.log("[v0] User created:", authData.user.id)
+    // Marquer l'email comme vérifié
+    await query("UPDATE users SET email_verified = true WHERE id = $1", [user.id])
 
-    await new Promise((resolve) => setTimeout(resolve, 1000))
-
-    const { error: profileError } = await supabase
-      .from("profiles")
-      .update({
-        first_name: firstName,
-        last_name: lastName,
-        phone,
-        role: "driver",
-      })
-      .eq("id", authData.user.id)
-
-    if (profileError) {
-      console.error("[v0] Error updating profile:", profileError)
-      throw profileError
-    }
-    console.log("[v0] Profile updated")
-
-    const { error: driverError } = await supabase.from("drivers").insert({
+    // Créer le chauffeur
+    await driverRepository.create({
+      user_id: user.id,
       first_name: firstName,
       last_name: lastName,
       email,
       phone,
       license_number: licenseNumber,
-      user_id: authData.user.id,
-      is_active: true,
     })
 
-    if (driverError) {
-      console.error("[v0] Error creating driver:", driverError)
-      throw driverError
-    }
-    console.log("[v0] Driver entry created")
+    // Activer le chauffeur
+    await query("UPDATE drivers SET is_active = true, is_account_activated = true WHERE user_id = $1", [user.id])
 
-    console.log("[v0] Driver created successfully:", authData.user.id)
-    return { success: true, userId: authData.user.id, email, password }
+    return { success: true, userId: user.id, email, password }
   } catch (error) {
-    console.error("[v0] Error creating active driver:", error)
+    console.error("[Driver] Error creating active driver:", error)
     return { success: false, error: error instanceof Error ? error.message : "Erreur inconnue" }
+  }
+}
+
+export async function getAllDrivers() {
+  try {
+    const drivers = await driverRepository.findAll()
+    return { success: true, drivers }
+  } catch (error) {
+    console.error("[Driver] Error getting drivers:", error)
+    return { success: false, error: String(error), drivers: [] }
+  }
+}
+
+export async function updateDriver(id: string, data: { first_name?: string; last_name?: string; phone?: string; license_number?: string; is_active?: boolean }) {
+  try {
+    const driver = await driverRepository.update(id, data)
+    return { success: true, driver }
+  } catch (error) {
+    console.error("[Driver] Error updating driver:", error)
+    return { success: false, error: String(error) }
+  }
+}
+
+export async function deleteDriver(id: string) {
+  try {
+    const driver = await driverRepository.findById(id)
+    if (driver?.user_id) {
+      await query("DELETE FROM sessions WHERE user_id = $1", [driver.user_id])
+      await userRepository.delete(driver.user_id)
+    }
+    await driverRepository.delete(id)
+    return { success: true }
+  } catch (error) {
+    console.error("[Driver] Error deleting driver:", error)
+    return { success: false, error: String(error) }
   }
 }

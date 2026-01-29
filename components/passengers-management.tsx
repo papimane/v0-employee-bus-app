@@ -1,24 +1,19 @@
 "use client"
 
 import type React from "react"
-import { useState, useEffect } from "react"
-import { createClient } from "@/lib/supabase/client"
+import { useState, useEffect, useCallback } from "react"
 import { Button } from "./ui/button"
 import { Input } from "./ui/input"
 import { Label } from "./ui/label"
 import { Card } from "./ui/card"
-import { Pencil, Trash2, Search } from "lucide-react"
+import { Pencil, Trash2, Search, Loader2 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
-
-interface Passenger {
-  id: string
-  first_name: string
-  last_name: string
-  email: string
-  phone: string
-  avatar_url: string | null
-  created_at: string
-}
+import {
+  getPassengers,
+  updatePassenger,
+  deletePassenger,
+  type Passenger,
+} from "@/app/actions/passenger-actions"
 
 export function PassengersManagement() {
   const [passengers, setPassengers] = useState<Passenger[]>([])
@@ -27,7 +22,6 @@ export function PassengersManagement() {
   const [editingPassenger, setEditingPassenger] = useState<Passenger | null>(null)
   const [showEditForm, setShowEditForm] = useState(false)
   const { toast } = useToast()
-  const supabase = createClient()
 
   const [formData, setFormData] = useState({
     first_name: "",
@@ -36,64 +30,58 @@ export function PassengersManagement() {
     phone: "",
   })
 
-  useEffect(() => {
-    loadPassengers()
-  }, [])
-
-  async function loadPassengers() {
+  const loadPassengers = useCallback(async () => {
     setIsLoading(true)
-    const { data, error } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("role", "passenger")
-      .order("created_at", { ascending: false })
-
-    if (error) {
+    try {
+      const data = await getPassengers()
+      setPassengers(data)
+    } catch (error) {
       toast({
         title: "Erreur",
         description: "Impossible de charger les passagers",
         variant: "destructive",
       })
-    } else {
-      setPassengers(data || [])
     }
     setIsLoading(false)
-  }
+  }, [toast])
+
+  useEffect(() => {
+    loadPassengers()
+  }, [loadPassengers])
 
   async function handleUpdate(e: React.FormEvent) {
     e.preventDefault()
-
     if (!editingPassenger) return
 
-    const { error } = await supabase.from("profiles").update(formData).eq("id", editingPassenger.id)
-
-    if (error) {
+    try {
+      const result = await updatePassenger(editingPassenger.id, formData)
+      if (!result.success) throw new Error(result.error)
+      toast({ title: "Succes", description: "Passager modifie avec succes" })
+      resetForm()
+      loadPassengers()
+    } catch (error) {
       toast({
         title: "Erreur",
         description: "Impossible de modifier le passager",
         variant: "destructive",
       })
-    } else {
-      toast({ title: "Succès", description: "Passager modifié avec succès" })
-      resetForm()
-      loadPassengers()
     }
   }
 
   async function handleDelete(id: string) {
-    if (!confirm("Êtes-vous sûr de vouloir supprimer ce passager ? Cette action est irréversible.")) return
+    if (!confirm("Etes-vous sur de vouloir supprimer ce passager ? Cette action est irreversible.")) return
 
-    const { error } = await supabase.from("profiles").delete().eq("id", id)
-
-    if (error) {
+    try {
+      const result = await deletePassenger(id)
+      if (!result.success) throw new Error(result.error)
+      toast({ title: "Succes", description: "Passager supprime avec succes" })
+      loadPassengers()
+    } catch (error) {
       toast({
         title: "Erreur",
         description: "Impossible de supprimer le passager",
         variant: "destructive",
       })
-    } else {
-      toast({ title: "Succès", description: "Passager supprimé avec succès" })
-      loadPassengers()
     }
   }
 
@@ -113,7 +101,7 @@ export function PassengersManagement() {
       first_name: passenger.first_name,
       last_name: passenger.last_name,
       email: passenger.email,
-      phone: passenger.phone,
+      phone: passenger.phone || "",
     })
     setEditingPassenger(passenger)
     setShowEditForm(true)
@@ -128,7 +116,12 @@ export function PassengersManagement() {
   )
 
   if (isLoading) {
-    return <div className="text-center py-8">Chargement...</div>
+    return (
+      <div className="text-center py-8">
+        <Loader2 className="h-8 w-8 animate-spin mx-auto" />
+        <p className="mt-2">Chargement...</p>
+      </div>
+    )
   }
 
   return (
@@ -152,7 +145,7 @@ export function PassengersManagement() {
           <form onSubmit={handleUpdate} className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <Label htmlFor="first_name">Prénom</Label>
+                <Label htmlFor="first_name">Prenom</Label>
                 <Input
                   id="first_name"
                   value={formData.first_name}
@@ -181,12 +174,11 @@ export function PassengersManagement() {
                 />
               </div>
               <div>
-                <Label htmlFor="phone">Téléphone</Label>
+                <Label htmlFor="phone">Telephone</Label>
                 <Input
                   id="phone"
                   value={formData.phone}
                   onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                  required
                 />
               </div>
             </div>
@@ -243,7 +235,7 @@ export function PassengersManagement() {
 
       {filteredPassengers.length === 0 && (
         <div className="text-center py-12 text-muted-foreground">
-          {searchTerm ? "Aucun passager trouvé" : "Aucun passager enregistré"}
+          {searchTerm ? "Aucun passager trouve" : "Aucun passager enregistre"}
         </div>
       )}
     </div>

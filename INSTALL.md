@@ -12,16 +12,16 @@ Avant de commencer, assurez-vous d'avoir installé :
 
 ## 1. Cloner le projet
 
-```bash
+\`\`\`bash
 git clone https://github.com/votre-repo/bus-pickup.git
 cd bus-pickup
-```
+\`\`\`
 
 ## 2. Installer les dépendances
 
-```bash
+\`\`\`bash
 pnpm install
-```
+\`\`\`
 
 ## 3. Configurer la base de données PostgreSQL
 
@@ -29,7 +29,7 @@ pnpm install
 
 Connectez-vous à PostgreSQL et créez la base de données :
 
-```bash
+\`\`\`bash
 # Se connecter à PostgreSQL
 psql -U postgres
 
@@ -38,29 +38,29 @@ CREATE DATABASE buspickup;
 
 # Quitter
 \q
-```
+\`\`\`
 
 ### 3.2. Exécuter les scripts de migration
 
-```bash
+\`\`\`bash
 # Créer les tables
 psql -U postgres -d buspickup -f database/schema.sql
 
 # Insérer les données de test (optionnel)
 psql -U postgres -d buspickup -f database/seed.sql
-```
+\`\`\`
 
 ## 4. Configurer les variables d'environnement
 
 Copiez le fichier d'exemple et renseignez vos valeurs :
 
-```bash
+\`\`\`bash
 cp .env.example .env.local
-```
+\`\`\`
 
 Éditez le fichier `.env.local` :
 
-```env
+\`\`\`env
 # URL de connexion à PostgreSQL
 DATABASE_URL=postgresql://postgres:votre_mot_de_passe@localhost:5432/buspickup
 
@@ -69,27 +69,27 @@ NEXT_PUBLIC_APP_URL=http://localhost:3000
 
 # Clé secrète (générez-en une avec: openssl rand -base64 32)
 JWT_SECRET=votre_cle_secrete_generee
-```
+\`\`\`
 
 ## 5. Lancer l'application
 
 ### Mode développement
 
-```bash
+\`\`\`bash
 pnpm dev
-```
+\`\`\`
 
 L'application sera accessible sur [http://localhost:3000](http://localhost:3000)
 
 ### Mode production
 
-```bash
+\`\`\`bash
 # Construire l'application
 pnpm build
 
 # Démarrer en production
 pnpm start
-```
+\`\`\`
 
 ## 6. Comptes de test
 
@@ -103,7 +103,7 @@ Si vous avez exécuté le script `seed.sql`, les comptes suivants sont disponibl
 
 ## Structure du projet
 
-```
+\`\`\`
 bus-pickup/
 ├── app/                    # Pages Next.js (App Router)
 │   ├── api/               # Routes API REST
@@ -121,11 +121,11 @@ bus-pickup/
 │   └── auth.ts           # Fonctions d'authentification
 ├── public/               # Fichiers statiques
 └── styles/               # Styles CSS
-```
+\`\`\`
 
 ## Commandes utiles
 
-```bash
+\`\`\`bash
 # Développement
 pnpm dev              # Lancer en mode développement
 pnpm build            # Construire pour la production
@@ -136,7 +136,7 @@ pnpm lint             # Vérifier le code
 psql -U postgres -d buspickup    # Se connecter à la base
 \dt                               # Lister les tables
 \d+ nom_table                     # Voir la structure d'une table
-```
+\`\`\`
 
 ## Déploiement
 
@@ -148,13 +148,13 @@ psql -U postgres -d buspickup    # Se connecter à la base
 
 ### Docker (alternative)
 
-```bash
+\`\`\`bash
 # Construire l'image
 docker build -t bus-pickup .
 
 # Lancer le conteneur
 docker run -p 3000:3000 --env-file .env.local bus-pickup
-```
+\`\`\`
 
 ## Dépannage
 
@@ -165,14 +165,14 @@ Vérifiez que :
 - L'URL de connexion est correcte dans `.env.local`
 - L'utilisateur a les droits sur la base de données
 
-```bash
+\`\`\`bash
 # Tester la connexion
 psql -U postgres -d buspickup -c "SELECT 1"
-```
+\`\`\`
 
 ### Port 3000 déjà utilisé
 
-```bash
+\`\`\`bash
 # Trouver le processus
 lsof -i :3000
 
@@ -181,7 +181,7 @@ kill -9 <PID>
 
 # Ou lancer sur un autre port
 PORT=3001 pnpm dev
-```
+\`\`\`
 
 ## Support
 

@@ -23,8 +23,8 @@ COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
 
-# Build de l'application
-RUN corepack enable pnpm && pnpm run build
+# Build de l'application (sans migration - elle s'exécutera au runtime)
+RUN corepack enable pnpm && pnpm run next build
 
 # Stage 3: Runner
 FROM node:20-alpine AS runner

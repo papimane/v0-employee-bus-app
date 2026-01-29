@@ -217,7 +217,7 @@ export default function ApiDocsPage() {
             <CardContent>
               <ul className="space-y-2 text-sm">
                 <li>• Content-Type: application/json</li>
-                <li>• Authentification: Supabase Auth</li>
+                <li>• Authentification: Session cookies</li>
                 <li>• Codes HTTP standards</li>
               </ul>
             </CardContent>
@@ -238,8 +238,8 @@ export default function ApiDocsPage() {
                 </Link>
               </Button>
               <Button variant="outline" size="sm" className="w-full bg-transparent" asChild>
-                <a href="https://supabase.com/docs" target="_blank" rel="noopener noreferrer">
-                  Documentation Supabase
+                <a href="https://node-postgres.com/" target="_blank" rel="noopener noreferrer">
+                  Documentation PostgreSQL
                 </a>
               </Button>
             </CardContent>

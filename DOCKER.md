@@ -20,9 +20,10 @@ cp .env.example .env
 Modifiez les valeurs selon vos besoins :
 
 ```env
-# Base de données
+# Base de données PostgreSQL
+POSTGRES_URL=postgresql://buspickup:buspickup123@postgres:5432/buspickup
 POSTGRES_USER=buspickup
-POSTGRES_PASSWORD=votre_mot_de_passe_securise
+POSTGRES_PASSWORD=buspickup123
 POSTGRES_DB=buspickup
 
 # Application
@@ -68,10 +69,10 @@ L'application sera accessible sur :
 
 ### 3. Mode Développement
 
-Pour le développement, utilisez uniquement PostgreSQL et pgAdmin en Docker, et lancez l'application en local :
+Pour le développement, utilisez uniquement PostgreSQL en Docker, et lancez l'application en local :
 
 ```bash
-# Démarrer PostgreSQL et pgAdmin
+# Démarrer PostgreSQL
 docker-compose -f docker-compose.dev.yml up -d
 
 # Dans un autre terminal, lancer l'application Next.js
@@ -102,9 +103,6 @@ docker-compose exec postgres psql -U buspickup -d buspickup
 ### Base de données
 
 ```bash
-# Exécuter les migrations manuellement
-docker-compose exec postgres psql -U buspickup -d buspickup -f /docker-entrypoint-initdb.d/01-schema.sql
-
 # Sauvegarder la base de données
 docker-compose exec postgres pg_dump -U buspickup buspickup > backup.sql
 
@@ -132,25 +130,26 @@ docker system prune -a
 ## Architecture Docker
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│                    Docker Network                        │
-│                  (buspickup-network)                     │
-│                                                          │
-│  ┌─────────────┐    ┌─────────────┐    ┌─────────────┐  │
-│  │             │    │             │    │             │  │
-│  │  Next.js    │───▶│  PostgreSQL │◀───│  pgAdmin    │  │
-│  │  App        │    │  Database   │    │  (optional) │  │
-│  │             │    │             │    │             │  │
-│  │  Port 3000  │    │  Port 5432  │    │  Port 5050  │  │
-│  └─────────────┘    └─────────────┘    └─────────────┘  │
-│                                                          │
-└─────────────────────────────────────────────────────────┘
++-----------------------------------------------------------+
+|                    Docker Network                          |
+|                  (buspickup-network)                       |
+|                                                            |
+|  +-------------+    +-------------+    +-------------+     |
+|  |             |    |             |    |             |     |
+|  |  Next.js    |--->|  PostgreSQL |<---|  pgAdmin    |     |
+|  |  App        |    |  Database   |    |  (optional) |     |
+|  |             |    |             |    |             |     |
+|  |  Port 3000  |    |  Port 5432  |    |  Port 5050  |     |
+|  +-------------+    +-------------+    +-------------+     |
+|                                                            |
++-----------------------------------------------------------+
 ```
 
 ## Variables d'environnement
 
 | Variable | Description | Défaut |
 |----------|-------------|--------|
+| `POSTGRES_URL` | URL de connexion PostgreSQL | - |
 | `POSTGRES_USER` | Utilisateur PostgreSQL | `buspickup` |
 | `POSTGRES_PASSWORD` | Mot de passe PostgreSQL | `buspickup_password` |
 | `POSTGRES_DB` | Nom de la base de données | `buspickup` |
@@ -168,7 +167,7 @@ docker system prune -a
 
 Après le premier démarrage, les comptes suivants sont disponibles :
 
-| Rôle | Email | Mot de passe |
+| Role | Email | Mot de passe |
 |------|-------|--------------|
 | Admin | admin@buspickup.com | Admin2024!Dakar |
 | Chauffeur | chauffeur.test@buspickup.com | Chauffeur2024! |
@@ -216,14 +215,3 @@ Pour un déploiement en production, pensez à :
 3. **Mettre en place des sauvegardes automatiques** de la base de données
 4. **Monitorer les conteneurs** avec des outils comme Prometheus/Grafana
 5. **Limiter les ressources** des conteneurs (CPU, mémoire)
-
-Exemple de configuration avec Traefik :
-
-```yaml
-services:
-  app:
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.buspickup.rule=Host(`buspickup.example.com`)"
-      - "traefik.http.routers.buspickup.tls.certresolver=letsencrypt"
-```

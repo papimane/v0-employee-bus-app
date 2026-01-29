@@ -11,30 +11,27 @@ import { ProfilePage } from "./profile-page"
 import { Button } from "./ui/button"
 import { Shield } from "lucide-react"
 import { useRouter } from "next/navigation"
-import type { User } from "@supabase/supabase-js"
 
 type Screen = "home" | "location" | "matching" | "tracking" | "complete" | "driver" | "profile"
 
-interface AppContentProps {
-  user: User
-  profile: {
-    id: string
-    first_name: string | null
-    last_name: string | null
-    phone: string | null
-    address: string | null
-    avatar_url: string | null
-    role: string
-  } | null
+interface UserData {
+  id: string
+  email: string
+  role: string
+  first_name: string | null
+  last_name: string | null
+  phone: string | null
+  avatar_url: string | null
 }
 
-export default function AppContent({ user, profile }: AppContentProps) {
-  const [currentScreen, setCurrentScreen] = useState<Screen>(profile?.role === "driver" ? "driver" : "home")
-  const [isDriverMode, setIsDriverMode] = useState(profile?.role === "driver")
-  const router = useRouter()
+interface AppContentProps {
+  user: UserData
+}
 
-  console.log("[v0] User profile role:", profile?.role)
-  console.log("[v0] Is admin:", profile?.role === "admin")
+export default function AppContent({ user }: AppContentProps) {
+  const [currentScreen, setCurrentScreen] = useState<Screen>(user.role === "driver" ? "driver" : "home")
+  const [isDriverMode, setIsDriverMode] = useState(user.role === "driver")
+  const router = useRouter()
 
   const toggleMode = () => {
     setIsDriverMode(!isDriverMode)
@@ -44,7 +41,7 @@ export default function AppContent({ user, profile }: AppContentProps) {
   const renderScreen = () => {
     if (currentScreen === "profile") {
       return (
-        <ProfilePage user={user} profile={profile} onBack={() => setCurrentScreen(isDriverMode ? "driver" : "home")} />
+        <ProfilePage user={user} onBack={() => setCurrentScreen(isDriverMode ? "driver" : "home")} />
       )
     }
 
@@ -58,7 +55,7 @@ export default function AppContent({ user, profile }: AppContentProps) {
           <HomeMap
             onRequestPickup={() => setCurrentScreen("location")}
             onOpenProfile={() => setCurrentScreen("profile")}
-            userProfile={profile}
+            userProfile={user}
           />
         )
       case "location":
@@ -78,7 +75,7 @@ export default function AppContent({ user, profile }: AppContentProps) {
           <HomeMap
             onRequestPickup={() => setCurrentScreen("location")}
             onOpenProfile={() => setCurrentScreen("profile")}
-            userProfile={profile}
+            userProfile={user}
           />
         )
     }
@@ -86,7 +83,7 @@ export default function AppContent({ user, profile }: AppContentProps) {
 
   return (
     <main className="h-screen w-full overflow-hidden">
-      {profile?.role === "admin" && (
+      {user.role === "admin" && (
         <Button
           onClick={() => router.push("/admin")}
           className="absolute top-4 left-4 z-20 bg-[#08AF6C] text-white hover:bg-[#07965E]"
