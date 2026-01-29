@@ -36,11 +36,48 @@ Une API REST complète est disponible avec documentation interactive:
 ## Technologies
 
 - **Framework**: Next.js 15 avec App Router
-- **Base de données**: Supabase (PostgreSQL)
-- **Authentification**: Supabase Auth
+- **Base de données**: PostgreSQL
+- **Authentification**: Custom Auth avec JWT
 - **UI**: React 19, Tailwind CSS, shadcn/ui
 - **Cartes**: Leaflet, OpenStreetMap
 - **API**: REST avec documentation OpenAPI
+- **Conteneurisation**: Docker & Docker Compose
+
+## Installation
+
+### Option 1: Docker (recommandé)
+
+```bash
+# Cloner le projet
+git clone <repo-url>
+cd buspickup
+
+# Configurer l'environnement
+cp .env.example .env
+
+# Lancer avec Docker
+docker-compose up -d --build
+```
+
+L'application sera accessible sur http://localhost:3000
+
+Voir [DOCKER.md](./DOCKER.md) pour plus de détails.
+
+### Option 2: Installation manuelle
+
+```bash
+# Installer les dépendances
+pnpm install
+
+# Configurer la base de données
+psql -U postgres -f database/schema.sql
+psql -U postgres -f database/seed.sql
+
+# Lancer en développement
+pnpm dev
+```
+
+Voir [INSTALL.md](./INSTALL.md) pour les instructions détaillées.
 
 ## Deployment
 

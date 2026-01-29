@@ -1,0 +1,88 @@
+# Docker Compose pour BusPickup
+# Inclut l'application Next.js, PostgreSQL et pgAdmin
+
+version: '3.8'
+
+services:
+  # Base de données PostgreSQL
+  postgres:
+    image: postgres:16-alpine
+    container_name: buspickup-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-buspickup}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-buspickup_password}
+      POSTGRES_DB: ${POSTGRES_DB:-buspickup}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      - ./database/seed.sql:/docker-entrypoint-initdb.d/02-seed.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-buspickup} -d ${POSTGRES_DB:-buspickup}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - buspickup-network
+
+  # Application Next.js
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: buspickup-app
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-buspickup}:${POSTGRES_PASSWORD:-buspickup_password}@postgres:5432/${POSTGRES_DB:-buspickup}
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_USER=${POSTGRES_USER:-buspickup}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-buspickup_password}
+      - POSTGRES_DB=${POSTGRES_DB:-buspickup}
+      - JWT_SECRET=${JWT_SECRET:-votre_secret_jwt_super_securise_minimum_32_caracteres}
+      - NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
+      - SMTP_HOST=${SMTP_HOST:-}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - SMTP_USER=${SMTP_USER:-}
+      - SMTP_PASSWORD=${SMTP_PASSWORD:-}
+      - SMTP_FROM=${SMTP_FROM:-noreply@buspickup.com}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - buspickup-network
+
+  # pgAdmin pour la gestion de la base de données (optionnel)
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: buspickup-pgadmin
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@buspickup.com}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin}
+      PGADMIN_CONFIG_SERVER_MODE: 'False'
+    ports:
+      - "5050:80"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    depends_on:
+      - postgres
+    networks:
+      - buspickup-network
+    profiles:
+      - admin
+
+volumes:
+  postgres_data:
+    driver: local
+  pgadmin_data:
+    driver: local
+
+networks:
+  buspickup-network:
+    driver: bridge
