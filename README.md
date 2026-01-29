@@ -25,7 +25,7 @@ Application de ramassage par bus d'entreprise avec gestion des demandes de trans
 
 ### Option 1: Docker (recommandé)
 
-```bash
+\`\`\`bash
 # Cloner le projet
 git clone <repo-url>
 cd buspickup
@@ -35,7 +35,7 @@ cp .env.example .env
 
 # Lancer avec Docker
 docker-compose up -d --build
-```
+\`\`\`
 
 L'application sera accessible sur http://localhost:3000
 
@@ -43,7 +43,7 @@ Voir [DOCKER.md](./DOCKER.md) pour plus de détails.
 
 ### Option 2: Installation manuelle
 
-```bash
+\`\`\`bash
 # Installer les dépendances
 pnpm install
 
@@ -52,7 +52,7 @@ psql -U postgres -f scripts/setup-database.sql
 
 # Lancer en développement
 pnpm dev
-```
+\`\`\`
 
 Voir [INSTALL.md](./INSTALL.md) pour les instructions détaillées.
 
@@ -89,7 +89,7 @@ Une API REST complète est disponible avec documentation interactive:
 
 ## Structure du projet
 
-```
+\`\`\`
 ├── app/
 │   ├── api/v1/          # API REST endpoints
 │   ├── api-docs/        # Documentation API
@@ -103,7 +103,7 @@ Une API REST complète est disponible avec documentation interactive:
 ├── scripts/             # Scripts SQL de migration
 ├── database/            # Schema et seed SQL
 └── public/              # Fichiers statiques
-```
+\`\`\`
 
 ## Support
 
