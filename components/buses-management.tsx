@@ -1,32 +1,16 @@
 "use client"
 
 import type React from "react"
-
-import { useState, useEffect } from "react"
-import { createClient } from "@/lib/supabase/client"
+import { useState, useEffect, useCallback } from "react"
 import { Button } from "./ui/button"
 import { Input } from "./ui/input"
 import { Label } from "./ui/label"
 import { Card } from "./ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select"
-import { Plus, Pencil, Trash2, Bus } from "lucide-react"
+import { Plus, Pencil, Trash2, Bus, Loader2 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
-
-interface BusType {
-  id: string
-  brand: string
-  model: string
-  license_plate: string
-  capacity: number
-  driver_id: string | null
-  is_active: boolean
-}
-
-interface Driver {
-  id: string
-  first_name: string
-  last_name: string
-}
+import { getBuses, createBus, updateBus, deleteBus, type BusType } from "@/app/actions/bus-actions"
+import { getDrivers, type Driver } from "@/app/actions/driver-actions"
 
 export function BusesManagement() {
   const [buses, setBuses] = useState<BusType[]>([])
@@ -35,7 +19,6 @@ export function BusesManagement() {
   const [showForm, setShowForm] = useState(false)
   const [editingBus, setEditingBus] = useState<BusType | null>(null)
   const { toast } = useToast()
-  const supabase = createClient()
 
   const [formData, setFormData] = useState({
     brand: "",
@@ -45,95 +28,72 @@ export function BusesManagement() {
     driver_id: "",
   })
 
+  const loadData = useCallback(async () => {
+    setIsLoading(true)
+    try {
+      const [busesData, driversData] = await Promise.all([getBuses(), getDrivers()])
+      setBuses(busesData)
+      setDrivers(driversData.filter((d) => d.is_active))
+    } catch (error) {
+      toast({
+        title: "Erreur",
+        description: "Impossible de charger les donnees",
+        variant: "destructive",
+      })
+    }
+    setIsLoading(false)
+  }, [toast])
+
   useEffect(() => {
     loadData()
-  }, [])
-
-  async function loadData() {
-    setIsLoading(true)
-
-    const [busesResult, driversResult] = await Promise.all([
-      supabase.from("buses").select("*").order("created_at", { ascending: false }),
-      supabase.from("drivers").select("id, first_name, last_name").eq("is_active", true),
-    ])
-
-    if (busesResult.error) {
-      toast({
-        title: "Erreur",
-        description: "Impossible de charger les bus",
-        variant: "destructive",
-      })
-    } else {
-      setBuses(busesResult.data || [])
-    }
-
-    if (driversResult.error) {
-      toast({
-        title: "Erreur",
-        description: "Impossible de charger les chauffeurs",
-        variant: "destructive",
-      })
-    } else {
-      setDrivers(driversResult.data || [])
-    }
-
-    setIsLoading(false)
-  }
+  }, [loadData])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
 
     const data = {
-      ...formData,
+      brand: formData.brand,
+      model: formData.model,
+      license_plate: formData.license_plate,
       capacity: Number.parseInt(formData.capacity),
-      driver_id: formData.driver_id || null,
+      driver_id: formData.driver_id === "none" ? null : formData.driver_id || null,
     }
 
-    if (editingBus) {
-      const { error } = await supabase.from("buses").update(data).eq("id", editingBus.id)
-
-      if (error) {
-        toast({
-          title: "Erreur",
-          description: "Impossible de modifier le bus",
-          variant: "destructive",
-        })
+    try {
+      if (editingBus) {
+        const result = await updateBus(editingBus.id, data)
+        if (!result.success) throw new Error(result.error)
+        toast({ title: "Succes", description: "Bus modifie avec succes" })
       } else {
-        toast({ title: "Succès", description: "Bus modifié avec succès" })
-        resetForm()
-        loadData()
+        const result = await createBus(data)
+        if (!result.success) throw new Error(result.error)
+        toast({ title: "Succes", description: "Bus ajoute avec succes" })
       }
-    } else {
-      const { error } = await supabase.from("buses").insert([data])
-
-      if (error) {
-        toast({
-          title: "Erreur",
-          description: "Impossible d'ajouter le bus",
-          variant: "destructive",
-        })
-      } else {
-        toast({ title: "Succès", description: "Bus ajouté avec succès" })
-        resetForm()
-        loadData()
-      }
+      resetForm()
+      loadData()
+    } catch (error) {
+      toast({
+        title: "Erreur",
+        description: error instanceof Error ? error.message : "Impossible de sauvegarder le bus",
+        variant: "destructive",
+      })
     }
   }
 
   async function handleDelete(id: string) {
-    if (!confirm("Êtes-vous sûr de vouloir supprimer ce bus ?")) return
+    if (!confirm("Etes-vous sur de vouloir supprimer ce bus ?")) return
 
-    const { error } = await supabase.from("buses").delete().eq("id", id)
-
-    if (error) {
+    try {
+      const result = await deleteBus(id)
+      if (!result.success) throw new Error(result.error)
+      toast({ title: "Succes", description: "Bus supprime avec succes" })
+      loadData()
+    } catch (error) {
       toast({
         title: "Erreur",
         description: "Impossible de supprimer le bus",
         variant: "destructive",
       })
-    } else {
-      toast({ title: "Succès", description: "Bus supprimé avec succès" })
-      loadData()
     }
   }
 
@@ -162,13 +122,18 @@ export function BusesManagement() {
   }
 
   function getDriverName(driverId: string | null) {
-    if (!driverId) return "Non assigné"
+    if (!driverId) return "Non assigne"
     const driver = drivers.find((d) => d.id === driverId)
-    return driver ? `${driver.first_name} ${driver.last_name}` : "Non assigné"
+    return driver ? `${driver.first_name} ${driver.last_name}` : "Non assigne"
   }
 
   if (isLoading) {
-    return <div className="text-center py-8">Chargement...</div>
+    return (
+      <div className="text-center py-8">
+        <Loader2 className="h-8 w-8 animate-spin mx-auto" />
+        <p className="mt-2">Chargement...</p>
+      </div>
+    )
   }
 
   return (
@@ -196,7 +161,7 @@ export function BusesManagement() {
                 />
               </div>
               <div>
-                <Label htmlFor="model">Modèle</Label>
+                <Label htmlFor="model">Modele</Label>
                 <Input
                   id="model"
                   value={formData.model}
@@ -225,16 +190,16 @@ export function BusesManagement() {
                 />
               </div>
               <div className="md:col-span-2">
-                <Label htmlFor="driver_id">Chauffeur assigné</Label>
+                <Label htmlFor="driver_id">Chauffeur assigne</Label>
                 <Select
                   value={formData.driver_id}
                   onValueChange={(value) => setFormData({ ...formData, driver_id: value })}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Sélectionner un chauffeur" />
+                    <SelectValue placeholder="Selectionner un chauffeur" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="none">Non assigné</SelectItem>
+                    <SelectItem value="none">Non assigne</SelectItem>
                     {drivers.map((driver) => (
                       <SelectItem key={driver.id} value={driver.id}>
                         {driver.first_name} {driver.last_name}
@@ -282,7 +247,7 @@ export function BusesManagement() {
         ))}
       </div>
 
-      {buses.length === 0 && <div className="text-center py-12 text-muted-foreground">Aucun bus enregistré</div>}
+      {buses.length === 0 && <div className="text-center py-12 text-muted-foreground">Aucun bus enregistre</div>}
     </div>
   )
 }

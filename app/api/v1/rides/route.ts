@@ -1,5 +1,22 @@
-import { createClient } from "@/lib/supabase/server"
+import { query } from "@/lib/db"
+import { cookies } from "next/headers"
 import { NextRequest, NextResponse } from "next/server"
+
+async function getUserFromSession() {
+  const cookieStore = await cookies()
+  const sessionToken = cookieStore.get("session_token")?.value
+  
+  if (!sessionToken) return null
+  
+  const result = await query(
+    `SELECT u.* FROM users u
+     JOIN sessions s ON u.id = s.user_id
+     WHERE s.token = $1 AND s.expires_at > NOW()`,
+    [sessionToken]
+  )
+  
+  return result.rows[0] || null
+}
 
 /**
  * @swagger
@@ -32,33 +49,46 @@ import { NextRequest, NextResponse } from "next/server"
  */
 export async function GET(request: NextRequest) {
   try {
-    const supabase = await createClient()
     const { searchParams } = new URL(request.url)
     
     const status = searchParams.get("status")
     const passenger_id = searchParams.get("passenger_id")
     const driver_id = searchParams.get("driver_id")
 
-    let query = supabase
-      .from("ride_requests")
-      .select(`
-        *,
-        passenger:profiles!ride_requests_passenger_id_fkey(id, first_name, last_name, phone),
-        driver:profiles!ride_requests_driver_id_fkey(id, first_name, last_name, phone)
-      `)
+    let sql = `
+      SELECT rr.*,
+             p.full_name as passenger_name, p.phone as passenger_phone,
+             d.full_name as driver_name, d.phone as driver_phone
+      FROM ride_requests rr
+      LEFT JOIN users p ON rr.passenger_id = p.id
+      LEFT JOIN users d ON rr.driver_id = d.id
+      WHERE 1=1
+    `
+    const params: any[] = []
+    let paramIndex = 1
 
-    if (status) query = query.eq("status", status)
-    if (passenger_id) query = query.eq("passenger_id", passenger_id)
-    if (driver_id) query = query.eq("driver_id", driver_id)
-
-    const { data, error } = await query.order("created_at", { ascending: false })
-
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 400 })
+    if (status) {
+      sql += ` AND rr.status = $${paramIndex}`
+      params.push(status)
+      paramIndex++
+    }
+    if (passenger_id) {
+      sql += ` AND rr.passenger_id = $${paramIndex}`
+      params.push(passenger_id)
+      paramIndex++
+    }
+    if (driver_id) {
+      sql += ` AND rr.driver_id = $${paramIndex}`
+      params.push(driver_id)
     }
 
-    return NextResponse.json({ data, count: data?.length || 0 })
+    sql += " ORDER BY rr.created_at DESC"
+
+    const result = await query(sql, params)
+
+    return NextResponse.json({ data: result.rows, count: result.rows.length })
   } catch (error) {
+    console.error("Error fetching rides:", error)
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }
@@ -99,14 +129,12 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
-    const supabase = await createClient()
-    const body = await request.json()
-
-    const { data: { user } } = await supabase.auth.getUser()
+    const user = await getUserFromSession()
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
+    const body = await request.json()
     const { pickup_lat, pickup_lng, pickup_address } = body
 
     if (!pickup_lat || !pickup_lng || !pickup_address) {
@@ -117,38 +145,29 @@ export async function POST(request: NextRequest) {
     }
 
     // Check for existing active request
-    const { data: existingRequest } = await supabase
-      .from("ride_requests")
-      .select("id")
-      .eq("passenger_id", user.id)
-      .in("status", ["pending", "accepted"])
-      .maybeSingle()
+    const existingResult = await query(
+      `SELECT id FROM ride_requests 
+       WHERE passenger_id = $1 AND status IN ('pending', 'accepted')`,
+      [user.id]
+    )
 
-    if (existingRequest) {
+    if (existingResult.rows.length > 0) {
       return NextResponse.json(
         { error: "You already have an active ride request" },
         { status: 400 }
       )
     }
 
-    const { data, error } = await supabase
-      .from("ride_requests")
-      .insert({
-        passenger_id: user.id,
-        pickup_lat,
-        pickup_lng,
-        pickup_address,
-        status: "pending",
-      })
-      .select()
-      .single()
+    const result = await query(
+      `INSERT INTO ride_requests (passenger_id, pickup_lat, pickup_lng, pickup_address, status)
+       VALUES ($1, $2, $3, $4, 'pending')
+       RETURNING *`,
+      [user.id, pickup_lat, pickup_lng, pickup_address]
+    )
 
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 400 })
-    }
-
-    return NextResponse.json({ data }, { status: 201 })
+    return NextResponse.json({ data: result.rows[0] }, { status: 201 })
   } catch (error) {
+    console.error("Error creating ride:", error)
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }

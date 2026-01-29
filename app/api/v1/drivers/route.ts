@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server"
+import { query } from "@/lib/db"
 import { type NextRequest, NextResponse } from "next/server"
 
 /**
@@ -19,27 +19,28 @@ import { type NextRequest, NextResponse } from "next/server"
  */
 export async function GET(request: NextRequest) {
   try {
-    const supabase = await createClient()
     const { searchParams } = new URL(request.url)
     const active = searchParams.get("active")
 
-    let query = supabase.from("drivers").select(`
-        *,
-        profile:profiles(id, first_name, last_name, phone, avatar_url)
-      `)
+    let sql = `
+      SELECT d.*, u.full_name as user_full_name, u.phone as user_phone, u.avatar_url as user_avatar
+      FROM drivers d
+      LEFT JOIN users u ON d.user_id = u.id
+    `
+    const params: any[] = []
 
     if (active !== null) {
-      query = query.eq("is_active", active === "true")
+      sql += " WHERE d.is_active = $1"
+      params.push(active === "true")
     }
 
-    const { data, error } = await query.order("created_at", { ascending: false })
+    sql += " ORDER BY d.created_at DESC"
 
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 400 })
-    }
+    const result = await query(sql, params)
 
-    return NextResponse.json({ data, count: data?.length || 0 })
+    return NextResponse.json({ data: result.rows, count: result.rows.length })
   } catch (error) {
+    console.error("Error fetching drivers:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }
