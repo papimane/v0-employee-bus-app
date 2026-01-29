@@ -1,61 +1,109 @@
 "use server"
 
-import { createAdminClient } from "@/lib/supabase/server"
+import { query, rideRequestRepository } from "@/lib/db"
+import { getCurrentUser } from "@/lib/auth"
+
+export async function createRideRequest(pickupLat: number, pickupLng: number, pickupAddress: string) {
+  try {
+    const user = await getCurrentUser()
+    if (!user) {
+      return { success: false, error: "Non authentifié" }
+    }
+
+    // Vérifier s'il existe déjà une demande en cours
+    const existingRequests = await rideRequestRepository.findByPassengerId(user.id, ["pending", "accepted"])
+    if (existingRequests.length > 0) {
+      return { 
+        success: false, 
+        error: "Vous avez déjà une demande en cours",
+        existingRequest: existingRequests[0]
+      }
+    }
+
+    const request = await rideRequestRepository.create({
+      passenger_id: user.id,
+      pickup_lat: pickupLat,
+      pickup_lng: pickupLng,
+      pickup_address: pickupAddress,
+    })
+
+    return { success: true, request }
+  } catch (error) {
+    console.error("[Ride] Error creating request:", error)
+    return { success: false, error: String(error) }
+  }
+}
 
 export async function acceptRideRequest(requestId: string, driverId: string) {
   try {
-    const supabase = await createAdminClient()
-
-    const { error } = await supabase.rpc("accept_ride_request", {
-      p_request_id: requestId,
-      p_driver_id: driverId,
-    })
-
-    if (error) {
-      console.error("[v0] Error accepting request:", error)
-      throw error
+    const request = await rideRequestRepository.accept(requestId, driverId)
+    
+    if (!request) {
+      return { success: false, error: "Demande non trouvée ou déjà acceptée" }
     }
 
-    console.log("[v0] Request accepted successfully:", requestId)
-    return { success: true }
+    return { success: true, request }
   } catch (error) {
-    console.error("[v0] Error in acceptRideRequest:", error)
+    console.error("[Ride] Error accepting request:", error)
     return { success: false, error: String(error) }
   }
 }
 
 export async function cancelRideRequest(requestId: string, userId: string) {
   try {
-    const supabase = await createAdminClient()
-
-    // Vérifier que la demande appartient bien à l'utilisateur
-    const { data: request, error: fetchError } = await supabase
-      .from("ride_requests")
-      .select("passenger_id")
-      .eq("id", requestId)
-      .single()
-
-    if (fetchError) {
-      console.error("[v0] Error fetching request:", fetchError)
-      throw fetchError
+    const request = await rideRequestRepository.cancel(requestId, userId)
+    
+    if (!request) {
+      return { success: false, error: "Demande non trouvée ou vous n'êtes pas autorisé à l'annuler" }
     }
 
-    if (request.passenger_id !== userId) {
-      throw new Error("Unauthorized: You can only cancel your own requests")
-    }
-
-    // Annuler la demande
-    const { error } = await supabase.from("ride_requests").update({ status: "cancelled" }).eq("id", requestId)
-
-    if (error) {
-      console.error("[v0] Error cancelling request:", error)
-      throw error
-    }
-
-    console.log("[v0] Request cancelled successfully:", requestId)
     return { success: true }
   } catch (error) {
-    console.error("[v0] Error in cancelRideRequest:", error)
+    console.error("[Ride] Error cancelling request:", error)
+    return { success: false, error: String(error) }
+  }
+}
+
+export async function completeRideRequest(requestId: string) {
+  try {
+    const request = await rideRequestRepository.complete(requestId)
+    
+    if (!request) {
+      return { success: false, error: "Demande non trouvée" }
+    }
+
+    return { success: true }
+  } catch (error) {
+    console.error("[Ride] Error completing request:", error)
+    return { success: false, error: String(error) }
+  }
+}
+
+export async function getPendingRequests() {
+  try {
+    const requests = await rideRequestRepository.findPending()
+    return { success: true, requests }
+  } catch (error) {
+    console.error("[Ride] Error getting pending requests:", error)
+    return { success: false, error: String(error), requests: [] }
+  }
+}
+
+export async function getUserActiveRequest() {
+  try {
+    const user = await getCurrentUser()
+    if (!user) {
+      return { success: false, error: "Non authentifié" }
+    }
+
+    const requests = await rideRequestRepository.findByPassengerId(user.id, ["pending", "accepted"])
+    
+    return { 
+      success: true, 
+      request: requests.length > 0 ? requests[0] : null 
+    }
+  } catch (error) {
+    console.error("[Ride] Error getting user request:", error)
     return { success: false, error: String(error) }
   }
 }

@@ -1,19 +1,27 @@
 import { redirect } from "next/navigation"
-import { createClient } from "@/lib/supabase/server"
+import { getCurrentUser } from "@/lib/auth"
 import AppContent from "@/components/app-content"
 
 export const dynamic = "force-dynamic"
 
 export default async function AppPage() {
-  const supabase = await createClient()
+  const user = await getCurrentUser()
 
-  const { data, error } = await supabase.auth.getUser()
-  if (error || !data?.user) {
+  if (!user) {
     redirect("/auth/login")
   }
 
-  // Récupérer le profil de l'utilisateur
-  const { data: profile } = await supabase.from("profiles").select("*").eq("id", data.user.id).single()
-
-  return <AppContent user={data.user} profile={profile} />
+  return (
+    <AppContent
+      user={{
+        id: user.id,
+        email: user.email,
+        role: user.role,
+        first_name: user.first_name,
+        last_name: user.last_name,
+        phone: user.phone,
+        avatar_url: user.avatar_url,
+      }}
+    />
+  )
 }

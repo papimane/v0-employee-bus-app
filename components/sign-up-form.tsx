@@ -1,8 +1,6 @@
 "use client"
 
 import type React from "react"
-
-import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -10,6 +8,7 @@ import { Label } from "@/components/ui/label"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useState } from "react"
+import { signUpAction } from "@/app/actions/auth-actions"
 
 export default function SignUpForm() {
   const [firstName, setFirstName] = useState("")
@@ -24,7 +23,6 @@ export default function SignUpForm() {
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault()
-    const supabase = createClient()
     setIsLoading(true)
     setError(null)
 
@@ -34,21 +32,31 @@ export default function SignUpForm() {
       return
     }
 
+    if (password.length < 6) {
+      setError("Le mot de passe doit contenir au moins 6 caractères")
+      setIsLoading(false)
+      return
+    }
+
     try {
-      const { error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          emailRedirectTo: process.env.NEXT_PUBLIC_DEV_SUPABASE_REDIRECT_URL || `${window.location.origin}/`,
-          data: {
-            first_name: firstName,
-            last_name: lastName,
-            phone: phone,
-          },
-        },
-      })
-      if (error) throw error
-      router.push("/auth/sign-up-success")
+      const formData = new FormData()
+      formData.append("email", email)
+      formData.append("password", password)
+      formData.append("firstName", firstName)
+      formData.append("lastName", lastName)
+      formData.append("phone", phone)
+
+      const result = await signUpAction(formData)
+
+      if (result.error) {
+        setError(result.error)
+        return
+      }
+
+      if (result.success) {
+        router.push("/")
+        router.refresh()
+      }
     } catch (error: unknown) {
       setError(error instanceof Error ? error.message : "Une erreur est survenue")
     } finally {
@@ -117,6 +125,7 @@ export default function SignUpForm() {
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Au moins 6 caractères"
                 />
               </div>
               <div className="grid gap-2">

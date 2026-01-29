@@ -1,8 +1,6 @@
 "use client"
 
 import type React from "react"
-
-import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -10,6 +8,7 @@ import { Label } from "@/components/ui/label"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useState } from "react"
+import { loginAction } from "@/app/actions/auth-actions"
 
 export default function LoginForm() {
   const [email, setEmail] = useState("")
@@ -20,25 +19,29 @@ export default function LoginForm() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
-    const supabase = createClient()
     setIsLoading(true)
     setError(null)
 
     try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      })
-      if (error) {
-        if (error.message === "Invalid login credentials") {
-          throw new Error("Identifiants de connexion invalides")
-        }
-        throw error
+      const formData = new FormData()
+      formData.append("email", email)
+      formData.append("password", password)
+
+      const result = await loginAction(formData)
+
+      if (result.error) {
+        setError(result.error)
+        return
       }
 
-      await new Promise((resolve) => setTimeout(resolve, 500))
-      router.push("/")
-      router.refresh()
+      if (result.success) {
+        if (result.role === "admin") {
+          router.push("/admin")
+        } else {
+          router.push("/")
+        }
+        router.refresh()
+      }
     } catch (error: unknown) {
       setError(error instanceof Error ? error.message : "Une erreur est survenue")
     } finally {

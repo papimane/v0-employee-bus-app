@@ -1,65 +1,65 @@
 "use client"
 
 import type React from "react"
-
 import { useState } from "react"
-import { createClient } from "@/lib/supabase/client"
 import { Button } from "./ui/button"
 import { Input } from "./ui/input"
 import { Label } from "./ui/label"
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card"
 import { ArrowLeft, Camera, Loader2 } from "lucide-react"
-import type { User } from "@supabase/supabase-js"
 import { useRouter } from "next/navigation"
+import { logoutAction } from "@/app/actions/auth-actions"
+import { updateProfileAction, changePasswordProfileAction } from "@/app/actions/profile-actions"
+
+interface UserData {
+  id: string
+  email: string
+  role: string
+  first_name: string | null
+  last_name: string | null
+  phone: string | null
+  avatar_url: string | null
+}
 
 interface ProfilePageProps {
-  user: User
-  profile: {
-    id: string
-    first_name: string | null
-    last_name: string | null
-    phone: string | null
-    address: string | null
-    avatar_url: string | null
-    role: string
-  } | null
+  user: UserData
   onBack: () => void
 }
 
-export function ProfilePage({ user, profile, onBack }: ProfilePageProps) {
+export function ProfilePage({ user, onBack }: ProfilePageProps) {
   const router = useRouter()
-  const [firstName, setFirstName] = useState(profile?.first_name || "")
-  const [lastName, setLastName] = useState(profile?.last_name || "")
-  const [phone, setPhone] = useState(profile?.phone || "")
-  const [address, setAddress] = useState(profile?.address || "")
-  const [avatarUrl, setAvatarUrl] = useState(profile?.avatar_url || "")
+  const [firstName, setFirstName] = useState(user.first_name || "")
+  const [lastName, setLastName] = useState(user.last_name || "")
+  const [phone, setPhone] = useState(user.phone || "")
+  const [address, setAddress] = useState("")
+  const [avatarUrl, setAvatarUrl] = useState(user.avatar_url || "")
+  const [currentPassword, setCurrentPassword] = useState("")
   const [newPassword, setNewPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
   const [isLoading, setIsLoading] = useState(false)
-  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
 
   const handleUpdateProfile = async (e: React.FormEvent) => {
     e.preventDefault()
-    const supabase = createClient()
     setIsLoading(true)
     setError(null)
     setSuccess(null)
 
     try {
-      const { error } = await supabase
-        .from("profiles")
-        .update({
-          first_name: firstName,
-          last_name: lastName,
-          phone: phone,
-          address: address,
-          avatar_url: avatarUrl,
-        })
-        .eq("id", user.id)
+      const formData = new FormData()
+      formData.append("firstName", firstName)
+      formData.append("lastName", lastName)
+      formData.append("phone", phone)
+      formData.append("address", address)
 
-      if (error) throw error
+      const result = await updateProfileAction(formData)
+
+      if (result.error) {
+        setError(result.error)
+        return
+      }
+
       setSuccess("Profil mis à jour avec succès")
       router.refresh()
     } catch (error: unknown) {
@@ -71,7 +71,6 @@ export function ProfilePage({ user, profile, onBack }: ProfilePageProps) {
 
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault()
-    const supabase = createClient()
     setIsLoading(true)
     setError(null)
     setSuccess(null)
@@ -83,12 +82,19 @@ export function ProfilePage({ user, profile, onBack }: ProfilePageProps) {
     }
 
     try {
-      const { error } = await supabase.auth.updateUser({
-        password: newPassword,
-      })
+      const formData = new FormData()
+      formData.append("currentPassword", currentPassword)
+      formData.append("newPassword", newPassword)
 
-      if (error) throw error
+      const result = await changePasswordProfileAction(formData)
+
+      if (result.error) {
+        setError(result.error)
+        return
+      }
+
       setSuccess("Mot de passe modifié avec succès")
+      setCurrentPassword("")
       setNewPassword("")
       setConfirmPassword("")
     } catch (error: unknown) {
@@ -99,46 +105,7 @@ export function ProfilePage({ user, profile, onBack }: ProfilePageProps) {
   }
 
   const handleSignOut = async () => {
-    const supabase = createClient()
-    await supabase.auth.signOut()
-    router.push("/auth/login")
-  }
-
-  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-
-    const supabase = createClient()
-    setIsUploadingPhoto(true)
-    setError(null)
-
-    try {
-      const fileExt = file.name.split(".").pop()
-      const fileName = `${user.id}-${Date.now()}.${fileExt}`
-      const filePath = `avatars/${fileName}`
-
-      const { error: uploadError } = await supabase.storage.from("avatars").upload(filePath, file, {
-        upsert: true,
-      })
-
-      if (uploadError) throw uploadError
-
-      const {
-        data: { publicUrl },
-      } = supabase.storage.from("avatars").getPublicUrl(filePath)
-
-      const { error: updateError } = await supabase.from("profiles").update({ avatar_url: publicUrl }).eq("id", user.id)
-
-      if (updateError) throw updateError
-
-      setAvatarUrl(publicUrl)
-      setSuccess("Photo de profil mise à jour avec succès")
-      router.refresh()
-    } catch (error: unknown) {
-      setError(error instanceof Error ? error.message : "Erreur lors de l'upload de la photo")
-    } finally {
-      setIsUploadingPhoto(false)
-    }
+    await logoutAction()
   }
 
   return (
@@ -161,21 +128,12 @@ export function ProfilePage({ user, profile, onBack }: ProfilePageProps) {
                 </span>
               )}
             </div>
-            <input
-              type="file"
-              id="avatar-upload"
-              accept="image/*"
-              className="hidden"
-              onChange={handlePhotoUpload}
-              disabled={isUploadingPhoto}
-            />
             <Button
               size="icon"
               className="absolute bottom-0 right-0 h-8 w-8 rounded-full bg-[#08AF6C] hover:bg-[#07965E]"
-              onClick={() => document.getElementById("avatar-upload")?.click()}
-              disabled={isUploadingPhoto}
+              disabled
             >
-              {isUploadingPhoto ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
+              <Camera className="h-4 w-4" />
             </Button>
           </div>
           <p className="mt-4 text-sm text-white/60">{user.email}</p>
@@ -257,6 +215,18 @@ export function ProfilePage({ user, profile, onBack }: ProfilePageProps) {
           <CardContent>
             <form onSubmit={handleChangePassword} className="space-y-4">
               <div className="space-y-2">
+                <Label htmlFor="currentPassword" className="text-white">
+                  Mot de passe actuel
+                </Label>
+                <Input
+                  id="currentPassword"
+                  type="password"
+                  value={currentPassword}
+                  onChange={(e) => setCurrentPassword(e.target.value)}
+                  className="bg-white/10 border-white/20 text-white"
+                />
+              </div>
+              <div className="space-y-2">
                 <Label htmlFor="newPassword" className="text-white">
                   Nouveau mot de passe
                 </Label>
@@ -283,7 +253,7 @@ export function ProfilePage({ user, profile, onBack }: ProfilePageProps) {
               <Button
                 type="submit"
                 className="w-full bg-[#08AF6C] hover:bg-[#07965E]"
-                disabled={isLoading || !newPassword}
+                disabled={isLoading || !currentPassword || !newPassword}
               >
                 {isLoading ? (
                   <>

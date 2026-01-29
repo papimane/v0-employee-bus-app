@@ -1,7 +1,6 @@
 "use client"
 
 import type React from "react"
-import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -9,6 +8,7 @@ import { Label } from "@/components/ui/label"
 import Link from "next/link"
 import { useState } from "react"
 import { CheckCircle2 } from "lucide-react"
+import { forgotPasswordAction } from "@/app/actions/auth-actions"
 
 export default function ForgotPasswordForm() {
   const [email, setEmail] = useState("")
@@ -18,22 +18,19 @@ export default function ForgotPasswordForm() {
 
   const handleResetPassword = async (e: React.FormEvent) => {
     e.preventDefault()
-    const supabase = createClient()
     setIsLoading(true)
     setError(null)
 
     try {
-      const redirectUrl = process.env.NEXT_PUBLIC_APP_URL
-        ? `${process.env.NEXT_PUBLIC_APP_URL}/auth/reset-password`
-        : typeof window !== "undefined"
-          ? `${window.location.origin}/auth/reset-password`
-          : "http://localhost:3000/auth/reset-password"
+      const formData = new FormData()
+      formData.append("email", email)
 
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: redirectUrl,
-      })
+      const result = await forgotPasswordAction(formData)
 
-      if (error) throw error
+      if (result.error) {
+        setError(result.error)
+        return
+      }
 
       setEmailSent(true)
     } catch (error: unknown) {
@@ -54,12 +51,12 @@ export default function ForgotPasswordForm() {
               </div>
               <CardTitle className="text-2xl text-center">Email envoyé</CardTitle>
               <CardDescription className="text-center">
-                Vérifiez votre boîte de réception pour réinitialiser votre mot de passe
+                Si un compte existe avec cet email, vous recevrez un lien de réinitialisation
               </CardDescription>
             </CardHeader>
             <CardContent>
               <p className="text-sm text-muted-foreground text-center mb-4">
-                Un email contenant un lien de réinitialisation a été envoyé à <strong>{email}</strong>
+                Vérifiez votre boîte de réception pour <strong>{email}</strong>
               </p>
               <div className="text-center text-sm">
                 <Link href="/auth/login" className="underline underline-offset-4">

@@ -1,27 +1,24 @@
 "use client"
 
 import type React from "react"
-
-import { useState, useEffect } from "react"
-import { createClient } from "@/lib/supabase/client"
+import { useState } from "react"
 import { Button } from "./ui/button"
 import { Input } from "./ui/input"
 import { Label } from "./ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card"
 import { Loader2 } from "lucide-react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
+import { Suspense } from "react"
+import { resetPasswordAction } from "@/app/actions/auth-actions"
 
-export function SetPasswordForm() {
+function SetPasswordFormContent() {
   const [password, setPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [supabase, setSupabase] = useState<ReturnType<typeof createClient> | null>(null)
   const router = useRouter()
-
-  useEffect(() => {
-    setSupabase(createClient())
-  }, [])
+  const searchParams = useSearchParams()
+  const token = searchParams.get("token")
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -40,23 +37,48 @@ export function SetPasswordForm() {
       return
     }
 
+    if (!token) {
+      setError("Token d'activation manquant")
+      setIsLoading(false)
+      return
+    }
+
     try {
-      if (!supabase) {
-        throw new Error("Client Supabase non disponible")
+      const formData = new FormData()
+      formData.append("token", token)
+      formData.append("password", password)
+
+      const result = await resetPasswordAction(formData)
+
+      if (result.error) {
+        setError(result.error)
+        return
       }
-      const { error } = await supabase.auth.updateUser({
-        password: password,
-      })
 
-      if (error) throw error
-
-      // Rediriger vers la page de connexion
       router.push("/auth/login?message=Mot de passe créé avec succès. Vous pouvez maintenant vous connecter.")
     } catch (error: unknown) {
       setError(error instanceof Error ? error.message : "Une erreur est survenue")
     } finally {
       setIsLoading(false)
     }
+  }
+
+  if (!token) {
+    return (
+      <Card className="w-full max-w-md border-white/10 bg-white/5 backdrop-blur-sm">
+        <CardHeader className="space-y-1">
+          <CardTitle className="text-2xl font-bold text-center text-white">Lien invalide</CardTitle>
+          <CardDescription className="text-center text-white/60">
+            Ce lien d'activation est invalide ou a expiré.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button onClick={() => router.push("/auth/login")} className="w-full">
+            Retour à la connexion
+          </Button>
+        </CardContent>
+      </Card>
+    )
   }
 
   return (
@@ -111,5 +133,13 @@ export function SetPasswordForm() {
         </form>
       </CardContent>
     </Card>
+  )
+}
+
+export function SetPasswordForm() {
+  return (
+    <Suspense fallback={<div className="text-white">Chargement...</div>}>
+      <SetPasswordFormContent />
+    </Suspense>
   )
 }

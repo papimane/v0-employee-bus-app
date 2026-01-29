@@ -1,35 +1,24 @@
 "use client"
 
 import type React from "react"
-import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { useRouter } from "next/navigation"
-import { useState, useEffect } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
+import { useState, Suspense } from "react"
 import { CheckCircle2 } from "lucide-react"
+import { resetPasswordAction } from "@/app/actions/auth-actions"
 
-export default function ResetPasswordForm() {
+function ResetPasswordFormContent() {
   const [password, setPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [passwordReset, setPasswordReset] = useState(false)
-  const [isValidSession, setIsValidSession] = useState(false)
   const router = useRouter()
-
-  useEffect(() => {
-    // Vérifier si l'utilisateur a une session valide (vient du lien email)
-    const checkSession = async () => {
-      const supabase = createClient()
-      const {
-        data: { session },
-      } = await supabase.auth.getSession()
-      setIsValidSession(!!session)
-    }
-    checkSession()
-  }, [])
+  const searchParams = useSearchParams()
+  const token = searchParams.get("token")
 
   const handleResetPassword = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -45,19 +34,27 @@ export default function ResetPasswordForm() {
       return
     }
 
-    const supabase = createClient()
+    if (!token) {
+      setError("Token de réinitialisation manquant")
+      return
+    }
+
     setIsLoading(true)
 
     try {
-      const { error } = await supabase.auth.updateUser({
-        password: password,
-      })
+      const formData = new FormData()
+      formData.append("token", token)
+      formData.append("password", password)
 
-      if (error) throw error
+      const result = await resetPasswordAction(formData)
+
+      if (result.error) {
+        setError(result.error)
+        return
+      }
 
       setPasswordReset(true)
 
-      // Rediriger vers la page de connexion après 3 secondes
       setTimeout(() => {
         router.push("/auth/login")
       }, 3000)
@@ -68,7 +65,7 @@ export default function ResetPasswordForm() {
     }
   }
 
-  if (!isValidSession) {
+  if (!token) {
     return (
       <div className="flex min-h-screen w-full items-center justify-center p-6 bg-gradient-to-br from-[#0A1628] to-[#1a2942]">
         <div className="w-full max-w-sm">
@@ -154,5 +151,13 @@ export default function ResetPasswordForm() {
         </Card>
       </div>
     </div>
+  )
+}
+
+export default function ResetPasswordForm() {
+  return (
+    <Suspense fallback={<div className="flex min-h-screen w-full items-center justify-center p-6 bg-gradient-to-br from-[#0A1628] to-[#1a2942]">Chargement...</div>}>
+      <ResetPasswordFormContent />
+    </Suspense>
   )
 }

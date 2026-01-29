@@ -6,14 +6,14 @@ import { Menu, Clock, Users, X, AlertCircle } from "lucide-react"
 import { Map } from "./map"
 import { useState, useEffect } from "react"
 import { useGeolocation } from "@/hooks/use-geolocation"
-import { createClient } from "@/lib/supabase/client"
 import { useToast } from "@/hooks/use-toast"
-import { cancelRideRequest } from "@/app/actions/ride-actions"
+import { cancelRideRequest, createRideRequest, getUserActiveRequest } from "@/app/actions/ride-actions"
 
 interface HomeMapProps {
   onRequestPickup: () => void
   onOpenProfile: () => void
   userProfile: {
+    id?: string
     first_name: string | null
     last_name: string | null
     avatar_url: string | null
@@ -69,70 +69,46 @@ export function HomeMap({ onRequestPickup, onOpenProfile, userProfile }: HomeMap
 
   useEffect(() => {
     const loadExistingRequest = async () => {
-      const supabase = createClient()
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
-      if (!user) return
-
-      console.log("[v0] Loading existing request for user:", user.id)
-
-      const { data: existingRequest, error } = await supabase
-        .from("ride_requests")
-        .select("id, status, driver_id")
-        .eq("passenger_id", user.id)
-        .in("status", ["pending", "accepted"])
-        .maybeSingle()
-
-      if (error) {
-        console.error("[v0] Error loading existing request:", error)
-        return
-      }
-
-      if (existingRequest) {
-        console.log("[v0] Found existing request:", existingRequest)
-        setCurrentRequestId(existingRequest.id)
+      const result = await getUserActiveRequest()
+      
+      if (result.success && result.request) {
+        setCurrentRequestId(result.request.id)
         setRequestPending(true)
-        if (existingRequest.status === "accepted") {
+        if (result.request.status === "accepted") {
           setDriverAccepted(true)
-          // Simuler la position du bus (à remplacer par la vraie position du chauffeur)
           setBusPosition([14.7037, -17.4541])
         }
       }
     }
 
     loadExistingRequest()
-  }, [])
 
-  useEffect(() => {
-    if (!currentRequestId) return
-
-    const supabase = createClient()
-    const channel = supabase
-      .channel(`ride_request_${currentRequestId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "UPDATE",
-          schema: "public",
-          table: "ride_requests",
-          filter: `id=eq.${currentRequestId}`,
-        },
-        (payload) => {
-          console.log("[v0] Ride request updated:", payload)
-          if (payload.new.status === "accepted") {
+    // Polling pour vérifier les mises à jour (remplace les websockets Supabase)
+    const interval = setInterval(async () => {
+      if (currentRequestId) {
+        const result = await getUserActiveRequest()
+        if (result.success && result.request) {
+          if (result.request.status === "accepted" && !driverAccepted) {
             setDriverAccepted(true)
-            // Simuler la position du bus (à remplacer par la vraie position du chauffeur)
             setBusPosition([14.7037, -17.4541])
+          } else if (result.request.status === "cancelled" || result.request.status === "completed") {
+            setRequestPending(false)
+            setCurrentRequestId(null)
+            setDriverAccepted(false)
+            setBusPosition(null)
           }
-        },
-      )
-      .subscribe()
+        } else if (result.success && !result.request) {
+          // La demande n'existe plus
+          setRequestPending(false)
+          setCurrentRequestId(null)
+          setDriverAccepted(false)
+          setBusPosition(null)
+        }
+      }
+    }, 5000)
 
-    return () => {
-      supabase.removeChannel(channel)
-    }
-  }, [currentRequestId])
+    return () => clearInterval(interval)
+  }, [currentRequestId, driverAccepted])
 
   const handleRequestPickup = async () => {
     if (isCreatingRequest) return
@@ -143,25 +119,15 @@ export function HomeMap({ onRequestPickup, onOpenProfile, userProfile }: HomeMap
       return
     }
 
-    const supabase = createClient()
-
-    if (requestPending && currentRequestId) {
+    if (requestPending && currentRequestId && userProfile?.id) {
       setIsCreatingRequest(true)
       try {
-        console.log("[v0] Cancelling request:", currentRequestId)
-
-        const {
-          data: { user },
-        } = await supabase.auth.getUser()
-        if (!user) throw new Error("User not authenticated")
-
-        const result = await cancelRideRequest(currentRequestId, user.id)
+        const result = await cancelRideRequest(currentRequestId, userProfile.id)
 
         if (!result.success) {
           throw new Error(result.error || "Failed to cancel request")
         }
 
-        console.log("[v0] Request cancelled successfully")
         setRequestPending(false)
         setCurrentRequestId(null)
         setDriverAccepted(false)
@@ -185,84 +151,30 @@ export function HomeMap({ onRequestPickup, onOpenProfile, userProfile }: HomeMap
     } else {
       setIsCreatingRequest(true)
       try {
-        const {
-          data: { user },
-        } = await supabase.auth.getUser()
-        if (!user) throw new Error("User not authenticated")
+        const result = await createRideRequest(
+          currentPosition[0],
+          currentPosition[1],
+          "Port de Dakar"
+        )
 
-        console.log("[v0] Creating ride request for user:", user.id)
-
-        const { data: existingRequests, error: checkError } = await supabase
-          .from("ride_requests")
-          .select("id, status")
-          .eq("passenger_id", user.id)
-          .in("status", ["pending", "accepted"])
-          .maybeSingle()
-
-        if (checkError) {
-          console.error("[v0] Error checking existing requests:", checkError)
-        }
-
-        if (existingRequests) {
-          console.log("[v0] User already has a pending request:", existingRequests)
+        if (!result.success) {
+          if (result.existingRequest) {
+            setCurrentRequestId(result.existingRequest.id)
+            setRequestPending(true)
+            if (result.existingRequest.status === "accepted") {
+              setDriverAccepted(true)
+            }
+          }
           toast({
             title: "Demande en cours",
-            description: "Vous avez déjà une demande de ramassage en cours. Veuillez l'annuler d'abord.",
+            description: result.error || "Vous avez déjà une demande de ramassage en cours.",
             variant: "destructive",
           })
-          setCurrentRequestId(existingRequests.id)
-          setRequestPending(true)
-          if (existingRequests.status === "accepted") {
-            setDriverAccepted(true)
-          }
           setIsCreatingRequest(false)
           return
         }
 
-        const { data, error } = await supabase
-          .from("ride_requests")
-          .insert({
-            passenger_id: user.id,
-            pickup_latitude: currentPosition[0],
-            pickup_longitude: currentPosition[1],
-            pickup_address: "Port de Dakar",
-            status: "pending",
-          })
-          .select()
-          .single()
-
-        if (error) {
-          console.error("[v0] Error creating request:", error)
-          if (error.code === "23505") {
-            toast({
-              title: "Demande en cours",
-              description: "Vous avez déjà une demande de ramassage en cours.",
-              variant: "destructive",
-            })
-            // Recharger la demande existante
-            const { data: existingRequest } = await supabase
-              .from("ride_requests")
-              .select("id, status")
-              .eq("passenger_id", user.id)
-              .in("status", ["pending", "accepted"])
-              .maybeSingle()
-
-            if (existingRequest) {
-              setCurrentRequestId(existingRequest.id)
-              setRequestPending(true)
-              if (existingRequest.status === "accepted") {
-                setDriverAccepted(true)
-              }
-            }
-          } else {
-            throw error
-          }
-          setIsCreatingRequest(false)
-          return
-        }
-
-        console.log("[v0] Ride request created successfully:", data)
-        setCurrentRequestId(data.id)
+        setCurrentRequestId(result.request!.id)
         setRequestPending(true)
         setShowToast(true)
         setTimeout(() => setShowToast(false), 3000)
@@ -383,7 +295,7 @@ export function HomeMap({ onRequestPickup, onOpenProfile, userProfile }: HomeMap
         </Card>
       </div>
 
-      {/* Flash messages - positionnés en dessous des quick stats */}
+      {/* Flash messages */}
       {showGeofenceError && (
         <div className={`absolute ${geoError ? "top-56" : "top-40"} left-4 right-4 z-20 animate-in slide-in-from-top-5 fade-in duration-300`}>
           <Card className="p-4 bg-red-600 backdrop-blur-sm border-red-700 shadow-lg">
